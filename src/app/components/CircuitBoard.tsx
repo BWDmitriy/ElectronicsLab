@@ -26,16 +26,26 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
   // Handle component selection
   const handleComponentClick = (id: string) => {
     if (currentTool === 'select') {
-      setSelectedComponentId(id);
-      setSelectedWireId(null);
+      if (selectedComponentId === id) {
+        // If clicking the already selected component, deselect it
+        setSelectedComponentId(null);
+      } else {
+        setSelectedComponentId(id);
+        setSelectedWireId(null);
+      }
     }
   };
   
   // Handle wire selection
   const handleWireClick = (id: string) => {
     if (currentTool === 'select') {
-      setSelectedWireId(id);
-      setSelectedComponentId(null);
+      if (selectedWireId === id) {
+        // If clicking the already selected wire, deselect it
+        setSelectedWireId(null);
+      } else {
+        setSelectedWireId(id);
+        setSelectedComponentId(null);
+      }
     }
   };
   
@@ -112,6 +122,13 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
   
   // Handle mouse down on the board
   const handleBoardMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    // Only handle clicks directly on the SVG element or grid elements
+    if (e.currentTarget !== e.target && 
+        !(e.target as Element).classList.contains('grid') && 
+        (e.target as Element).tagName !== 'line') {
+      return;
+    }
+    
     if (!boardRef.current) return;
     
     const rect = boardRef.current.getBoundingClientRect();
@@ -123,7 +140,7 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
       addComponent(currentTool as ComponentType, { x, y });
       setCurrentTool('select'); // Switch back to select tool after placing component
     } else {
-      // Start drag selection
+      // Deselect current selections when clicking on empty board areas
       setSelectedComponentId(null);
       setSelectedWireId(null);
     }

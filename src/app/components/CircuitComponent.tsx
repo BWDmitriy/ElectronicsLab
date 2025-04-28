@@ -1,7 +1,7 @@
 'use client';
 
 import { Component, ComponentType } from '../lib/circuitEngine';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface CircuitComponentProps {
   component: Component;
@@ -80,17 +80,23 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
     }
   };
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  // Handle component selection - use useCallback to prevent recreating function
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     onClick(component.id);
-    setDragging(true);
-    setDragOffset({
-      x: e.clientX - component.position.x,
-      y: e.clientY - component.position.y
-    });
-  };
+    
+    // Only start dragging if component is selected
+    if (selected) {
+      setDragging(true);
+      setDragOffset({
+        x: e.clientX - component.position.x,
+        y: e.clientY - component.position.y
+      });
+    }
+  }, [component.id, component.position.x, component.position.y, onClick, selected]);
 
-  const handleMouseMove = (e: MouseEvent) => {
+  // Move component while dragging
+  const handleMouseMove = useCallback((e: MouseEvent) => {
     if (dragging) {
       onMove(
         component.id,
@@ -98,27 +104,33 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
         e.clientY - dragOffset.y
       );
     }
-  };
+  }, [component.id, dragOffset.x, dragOffset.y, dragging, onMove]);
 
-  const handleMouseUp = () => {
+  // End dragging
+  const handleMouseUp = useCallback(() => {
     setDragging(false);
-  };
+  }, []);
 
-  // Add event listeners for mouse move and up
-  if (dragging) {
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-  } else {
-    window.removeEventListener('mousemove', handleMouseMove);
-    window.removeEventListener('mouseup', handleMouseUp);
-  }
+  // Add and remove event listeners with proper cleanup
+  useEffect(() => {
+    if (dragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      
+      // Cleanup function to remove event listeners
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [dragging, handleMouseMove, handleMouseUp]);
 
   return (
     <g 
       className={`circuit-component ${selected ? 'selected' : ''}`} 
       onClick={(e) => e.stopPropagation()}
       onMouseDown={handleMouseDown}
-      style={{ cursor: 'move' }}
+      style={{ cursor: selected ? 'move' : 'pointer' }}
     >
       {getComponentSymbol(component.type)}
       {selected && (
@@ -135,4 +147,4 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
       )}
     </g>
   );
-} 
+}
