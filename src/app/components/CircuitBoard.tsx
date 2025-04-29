@@ -14,7 +14,7 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
   const [circuit, setCircuit] = useState<Circuit>(initialCircuit || { components: [], wires: [] });
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [selectedWireId, setSelectedWireId] = useState<string | null>(null);
-  const [currentTool, setCurrentTool] = useState<'select' | 'resistor' | 'capacitor' | 'inductor' | 'voltageSource' | 'diode'>('select');
+  const [currentTool, setCurrentTool] = useState<ComponentType | 'select'>('select');
   const boardRef = useRef<SVGSVGElement>(null);
   const gridSize = 20;
   
@@ -65,7 +65,13 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
       'transistor': 0,
       'voltageSource': 5, // 5V
       'currentSource': 0.1, // 100mA
-      'wire': 0
+      'wire': 0,
+      'ground': 0,
+      'battery': 12, // 12V
+      'dcCurrentSource': 0.1, // 100mA
+      'acVoltageSource': 120, // 120V
+      'acCurrentSource': 1, // 1A
+      'squareWaveSource': 60 // 60Hz
     };
     
     const component = createComponent(type, position, defaultValues[type]);
@@ -236,7 +242,7 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
   
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2 p-2 bg-gray-100 rounded">
+      <div className="flex flex-wrap gap-2 p-2 bg-gray-100 rounded">
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'select' ? 'bg-blue-500 text-white' : 'bg-white'}`}
           onClick={() => setCurrentTool('select')}
@@ -262,16 +268,46 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
           Inductor
         </button>
         <button 
-          className={`px-3 py-1 rounded ${currentTool === 'voltageSource' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => setCurrentTool('voltageSource')}
-        >
-          Voltage Source
-        </button>
-        <button 
           className={`px-3 py-1 rounded ${currentTool === 'diode' ? 'bg-blue-500 text-white' : 'bg-white'}`}
           onClick={() => setCurrentTool('diode')}
         >
           Diode
+        </button>
+        <button 
+          className={`px-3 py-1 rounded ${currentTool === 'ground' ? 'bg-blue-500 text-white' : 'bg-white'}`}
+          onClick={() => setCurrentTool('ground')}
+        >
+          Ground
+        </button>
+        <button 
+          className={`px-3 py-1 rounded ${currentTool === 'battery' ? 'bg-blue-500 text-white' : 'bg-white'}`}
+          onClick={() => setCurrentTool('battery')}
+        >
+          Battery
+        </button>
+        <button 
+          className={`px-3 py-1 rounded ${currentTool === 'dcCurrentSource' ? 'bg-blue-500 text-white' : 'bg-white'}`}
+          onClick={() => setCurrentTool('dcCurrentSource')}
+        >
+          DC Source
+        </button>
+        <button 
+          className={`px-3 py-1 rounded ${currentTool === 'acVoltageSource' ? 'bg-blue-500 text-white' : 'bg-white'}`}
+          onClick={() => setCurrentTool('acVoltageSource')}
+        >
+          AC Voltage
+        </button>
+        <button 
+          className={`px-3 py-1 rounded ${currentTool === 'acCurrentSource' ? 'bg-blue-500 text-white' : 'bg-white'}`}
+          onClick={() => setCurrentTool('acCurrentSource')}
+        >
+          AC Current
+        </button>
+        <button 
+          className={`px-3 py-1 rounded ${currentTool === 'squareWaveSource' ? 'bg-blue-500 text-white' : 'bg-white'}`}
+          onClick={() => setCurrentTool('squareWaveSource')}
+        >
+          Clock
         </button>
       </div>
       

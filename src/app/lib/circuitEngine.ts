@@ -1,5 +1,19 @@
 // Types for electronic components
-export type ComponentType = 'resistor' | 'capacitor' | 'inductor' | 'diode' | 'transistor' | 'voltageSource' | 'currentSource' | 'wire';
+export type ComponentType = 
+  | 'resistor' 
+  | 'capacitor' 
+  | 'inductor' 
+  | 'diode' 
+  | 'transistor' 
+  | 'voltageSource' 
+  | 'currentSource' 
+  | 'wire'
+  | 'ground'
+  | 'battery'
+  | 'dcCurrentSource'
+  | 'acVoltageSource'
+  | 'acCurrentSource'
+  | 'squareWaveSource';
 
 export interface Point {
   x: number;
@@ -83,7 +97,20 @@ export function runSimulation(circuit: Circuit): Record<string, number> {
         results[component.id] = component.value; // Resistance in ohms
         break;
       case 'voltageSource':
+      case 'battery':
+      case 'acVoltageSource':
         results[component.id] = component.value; // Voltage in volts
+        break;
+      case 'currentSource':
+      case 'dcCurrentSource':
+      case 'acCurrentSource':
+        results[component.id] = component.value; // Current in amps
+        break;
+      case 'squareWaveSource':
+        results[component.id] = component.value; // Frequency in Hz
+        break;
+      case 'ground':
+        results[component.id] = 0; // 0V reference
         break;
       default:
         results[component.id] = 0;

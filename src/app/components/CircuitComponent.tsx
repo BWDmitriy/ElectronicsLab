@@ -60,6 +60,80 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
             <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}V</text>
           </g>
         );
+      case 'ground':
+        return (
+          <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
+            <line x1={component.position.x} y1={component.position.y - 20} x2={component.position.x} y2={component.position.y + 10} stroke="black" strokeWidth="2" />
+            <line x1={component.position.x - 15} y1={component.position.y + 10} x2={component.position.x + 15} y2={component.position.y + 10} stroke="black" strokeWidth="2" />
+            <line x1={component.position.x - 10} y1={component.position.y + 15} x2={component.position.x + 10} y2={component.position.y + 15} stroke="black" strokeWidth="2" />
+            <line x1={component.position.x - 5} y1={component.position.y + 20} x2={component.position.x + 5} y2={component.position.y + 20} stroke="black" strokeWidth="2" />
+          </g>
+        );
+      case 'battery':
+        return (
+          <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
+            <line x1={component.position.x - 40} y1={component.position.y} x2={component.position.x - 10} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <line x1={component.position.x - 10} y1={component.position.y - 15} x2={component.position.x - 10} y2={component.position.y + 15} stroke="black" strokeWidth="2" />
+            <line x1={component.position.x - 5} y1={component.position.y - 7} x2={component.position.x - 5} y2={component.position.y + 7} stroke="black" strokeWidth="3" />
+            <line x1={component.position.x + 5} y1={component.position.y - 15} x2={component.position.x + 5} y2={component.position.y + 15} stroke="black" strokeWidth="1" />
+            <line x1={component.position.x + 5} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}V</text>
+          </g>
+        );
+      case 'dcCurrentSource':
+        return (
+          <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
+            <line x1={component.position.x - 40} y1={component.position.y} x2={component.position.x - 20} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <circle cx={component.position.x} cy={component.position.y} r="20" fill="white" stroke="black" strokeWidth="2" />
+            <line x1={component.position.x - 10} y1={component.position.y} x2={component.position.x + 10} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <polygon points={`${component.position.x},${component.position.y - 10} ${component.position.x + 10},${component.position.y} ${component.position.x},${component.position.y + 10}`} fill="black" />
+            <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}A</text>
+          </g>
+        );
+      case 'acVoltageSource':
+        return (
+          <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
+            <line x1={component.position.x - 40} y1={component.position.y} x2={component.position.x - 20} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <circle cx={component.position.x} cy={component.position.y} r="20" fill="white" stroke="black" strokeWidth="2" />
+            <path d={`M${component.position.x - 10},${component.position.y} 
+                      Q${component.position.x - 5},${component.position.y - 10} ${component.position.x},${component.position.y}
+                      Q${component.position.x + 5},${component.position.y + 10} ${component.position.x + 10},${component.position.y}`} 
+                  fill="none" stroke="black" strokeWidth="2" />
+            <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}V~</text>
+          </g>
+        );
+      case 'acCurrentSource':
+        return (
+          <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
+            <line x1={component.position.x - 40} y1={component.position.y} x2={component.position.x - 20} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <circle cx={component.position.x} cy={component.position.y} r="20" fill="white" stroke="black" strokeWidth="2" />
+            <path d={`M${component.position.x - 10},${component.position.y} 
+                      Q${component.position.x - 5},${component.position.y - 10} ${component.position.x},${component.position.y}
+                      Q${component.position.x + 5},${component.position.y + 10} ${component.position.x + 10},${component.position.y}`} 
+                  fill="none" stroke="black" strokeWidth="2" />
+            <polygon points={`${component.position.x + 5},${component.position.y - 10} ${component.position.x + 15},${component.position.y} ${component.position.x + 5},${component.position.y + 10}`} fill="black" />
+            <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}A~</text>
+          </g>
+        );
+      case 'squareWaveSource':
+        return (
+          <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
+            <line x1={component.position.x - 40} y1={component.position.y} x2={component.position.x - 20} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <circle cx={component.position.x} cy={component.position.y} r="20" fill="white" stroke="black" strokeWidth="2" />
+            <path d={`M${component.position.x - 10},${component.position.y - 5} 
+                      L${component.position.x - 10},${component.position.y - 10} 
+                      L${component.position.x},${component.position.y - 10} 
+                      L${component.position.x},${component.position.y + 10} 
+                      L${component.position.x + 10},${component.position.y + 10} 
+                      L${component.position.x + 10},${component.position.y + 5}`} 
+                  fill="none" stroke="black" strokeWidth="2" />
+            <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}Hz</text>
+          </g>
+        );
       case 'diode':
         return (
           <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
