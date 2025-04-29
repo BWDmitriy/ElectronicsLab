@@ -5,6 +5,7 @@ import { Circuit, Point, createComponent, ComponentType } from '../lib/circuitEn
 import CircuitComponent from './CircuitComponent';
 import WireComponent from './WireComponent';
 import Oscilloscope from './Oscilloscope';
+import PropertiesPanel from './PropertiesPanel';
 import { simulateCircuit, SimulationResult, getProbeableNodes } from '../lib/circuitSimulator';
 
 interface CircuitBoardProps {
@@ -25,6 +26,11 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
   const [showOscilloscope, setShowOscilloscope] = useState(false);
   const [selectedProbes, setSelectedProbes] = useState<string[]>([]);
   const [availableProbes, setAvailableProbes] = useState<Array<{id: string, label: string}>>([]);
+  
+  // Get the selected component (if any)
+  const selectedComponent = selectedComponentId 
+    ? circuit.components.find(comp => comp.id === selectedComponentId) || null
+    : null;
   
   // Update parent component when circuit changes
   useEffect(() => {
@@ -283,6 +289,89 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
     });
   };
   
+  // Update a component's primary value
+  const handleComponentValueChange = (id: string, newValue: number) => {
+    console.log(`Updating component ${id} value to ${newValue}`);
+    
+    // Special handling for zero values - we don't want to remove components anymore
+    // Instead, enforce a minimum value appropriate for the component type
+    setCircuit(prev => {
+      const updatedComponents = prev.components.map(comp => {
+        if (comp.id === id) {
+          // Find minimum allowed value based on component type
+          let finalValue = newValue;
+          if (newValue <= 0) {
+            switch (comp.type) {
+              case 'resistor':
+                finalValue = 0.1; // 0.1 ohm minimum
+                break;
+              case 'capacitor':
+                finalValue = 1e-12; // 1pF minimum
+                break;
+              case 'inductor':
+                finalValue = 1e-9; // 1nH minimum
+                break;
+              case 'voltageSource':
+              case 'battery':
+              case 'acVoltageSource':
+                finalValue = 0.1; // 0.1V minimum
+                break;
+              case 'currentSource':
+              case 'dcCurrentSource':
+              case 'acCurrentSource':
+                finalValue = 1e-6; // 1µA minimum
+                break;
+              case 'squareWaveSource':
+                finalValue = 0.1; // 0.1Hz minimum
+                break;
+              default:
+                finalValue = 0.1; // Default minimum
+            }
+            console.log(`Value too low, using minimum: ${finalValue}`);
+          }
+          
+          return {
+            ...comp,
+            value: finalValue
+          };
+        }
+        return comp;
+      });
+      
+      return {
+        ...prev,
+        components: updatedComponents
+      };
+    });
+    
+    // After updating the value, clear any simulation results 
+    // so they'll be regenerated with the new values
+    setSimulationResult(null);
+  };
+  
+  // Update a component's property
+  const handleComponentPropertyChange = (id: string, propertyName: string, value: number | string | boolean) => {
+    setCircuit(prev => {
+      const updatedComponents = prev.components.map(comp => {
+        if (comp.id === id) {
+          return {
+            ...comp,
+            properties: {
+              ...comp.properties,
+              [propertyName]: value
+            }
+          };
+        }
+        return comp;
+      });
+      
+      return {
+        ...prev,
+        components: updatedComponents
+      };
+    });
+  };
+  
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2 p-2 bg-gray-100 rounded">
@@ -354,39 +443,51 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
         </button>
       </div>
       
-      <div className="border border-gray-300 rounded overflow-hidden">
-        <svg 
-          ref={boardRef} 
-          width="100%" 
-          height="600px" 
-          viewBox="0 0 1000 800"
-          className="bg-white" 
-          onMouseDown={handleBoardMouseDown}
-        >
-          {/* Grid */}
-          <g className="grid">{renderGrid()}</g>
-          
-          {/* Wires */}
-          {circuit.wires.map(wire => (
-            <WireComponent 
-              key={wire.id} 
-              wire={wire} 
-              selected={wire.id === selectedWireId} 
-              onClick={handleWireClick} 
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex-grow border border-gray-300 rounded overflow-hidden">
+          <svg 
+            ref={boardRef} 
+            width="100%" 
+            height="600px" 
+            viewBox="0 0 1000 800"
+            className="bg-white" 
+            onMouseDown={handleBoardMouseDown}
+          >
+            {/* Grid */}
+            <g className="grid">{renderGrid()}</g>
+            
+            {/* Wires */}
+            {circuit.wires.map(wire => (
+              <WireComponent 
+                key={wire.id} 
+                wire={wire} 
+                selected={wire.id === selectedWireId} 
+                onClick={handleWireClick} 
+              />
+            ))}
+            
+            {/* Components */}
+            {circuit.components.map(component => (
+              <CircuitComponent 
+                key={component.id} 
+                component={component} 
+                selected={component.id === selectedComponentId} 
+                onClick={handleComponentClick} 
+                onMove={moveComponent} 
+              />
+            ))}
+          </svg>
+        </div>
+        
+        {selectedComponent && (
+          <div className="w-full md:w-80">
+            <PropertiesPanel
+              component={selectedComponent}
+              onValueChange={handleComponentValueChange}
+              onPropertyChange={handleComponentPropertyChange}
             />
-          ))}
-          
-          {/* Components */}
-          {circuit.components.map(component => (
-            <CircuitComponent 
-              key={component.id} 
-              component={component} 
-              selected={component.id === selectedComponentId} 
-              onClick={handleComponentClick} 
-              onMove={moveComponent} 
-            />
-          ))}
-        </svg>
+          </div>
+        )}
       </div>
       
       <div className="flex justify-between p-2 bg-gray-100 rounded">

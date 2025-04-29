@@ -15,6 +15,40 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
   const getComponentSymbol = (type: ComponentType) => {
+    // Helper function to format values with appropriate units
+    const formatValue = (value: number, type: ComponentType): string => {
+      switch (type) {
+        case 'resistor':
+          return value >= 1000000 ? `${(value/1000000).toFixed(1)}MΩ` :
+                 value >= 1000 ? `${(value/1000).toFixed(1)}kΩ` :
+                 `${value.toFixed(1)}Ω`;
+        case 'capacitor':
+          return value >= 0.000001 ? `${(value*1000000).toFixed(1)}µF` :
+                 value >= 0.000000001 ? `${(value*1000000000).toFixed(1)}nF` :
+                 `${(value*1000000000000).toFixed(1)}pF`;
+        case 'inductor':
+          return value >= 1 ? `${value.toFixed(1)}H` :
+                 value >= 0.001 ? `${(value*1000).toFixed(1)}mH` :
+                 `${(value*1000000).toFixed(1)}µH`;
+        case 'voltageSource':
+        case 'battery':
+        case 'acVoltageSource':
+          return `${value.toFixed(1)}V`;
+        case 'currentSource':
+        case 'dcCurrentSource':
+        case 'acCurrentSource':
+          return value >= 1 ? `${value.toFixed(1)}A` :
+                 value >= 0.001 ? `${(value*1000).toFixed(1)}mA` :
+                 `${(value*1000000).toFixed(1)}µA`;
+        case 'squareWaveSource':
+          return value >= 1000000 ? `${(value/1000000).toFixed(1)}MHz` :
+                 value >= 1000 ? `${(value/1000).toFixed(1)}kHz` :
+                 `${value.toFixed(1)}Hz`;
+        default:
+          return `${value}`;
+      }
+    };
+
     switch (type) {
       case 'resistor':
         return (
@@ -22,7 +56,7 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
             <line x1={component.position.x - 40} y1={component.position.y} x2={component.position.x - 20} y2={component.position.y} stroke="black" strokeWidth="2" />
             <rect x={component.position.x - 20} y={component.position.y - 10} width="40" height="20" fill="white" stroke="black" strokeWidth="2" />
             <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
-            <text x={component.position.x} y={component.position.y + 5} textAnchor="middle" fontSize="12">{component.value}Ω</text>
+            <text x={component.position.x} y={component.position.y + 5} textAnchor="middle" fontSize="12">{formatValue(component.value, 'resistor')}</text>
           </g>
         );
       case 'capacitor':
@@ -32,7 +66,7 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
             <line x1={component.position.x - 10} y1={component.position.y - 15} x2={component.position.x - 10} y2={component.position.y + 15} stroke="black" strokeWidth="2" />
             <line x1={component.position.x + 10} y1={component.position.y - 15} x2={component.position.x + 10} y2={component.position.y + 15} stroke="black" strokeWidth="2" />
             <line x1={component.position.x + 10} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
-            <text x={component.position.x} y={component.position.y - 20} textAnchor="middle" fontSize="12">{component.value}F</text>
+            <text x={component.position.x} y={component.position.y - 20} textAnchor="middle" fontSize="12">{formatValue(component.value, 'capacitor')}</text>
           </g>
         );
       case 'inductor':
@@ -46,7 +80,7 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
                       A5,5 0 0 1 ${component.position.x + 20},${component.position.y}`} 
                   fill="none" stroke="black" strokeWidth="2" />
             <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
-            <text x={component.position.x} y={component.position.y - 15} textAnchor="middle" fontSize="12">{component.value}H</text>
+            <text x={component.position.x} y={component.position.y - 15} textAnchor="middle" fontSize="12">{formatValue(component.value, 'inductor')}</text>
           </g>
         );
       case 'voltageSource':
@@ -57,7 +91,7 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
             <line x1={component.position.x - 10} y1={component.position.y} x2={component.position.x + 10} y2={component.position.y} stroke="black" strokeWidth="2" />
             <line x1={component.position.x} y1={component.position.y - 10} x2={component.position.x} y2={component.position.y + 10} stroke="black" strokeWidth="2" />
             <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
-            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}V</text>
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{formatValue(component.value, 'voltageSource')}</text>
           </g>
         );
       case 'ground':
@@ -77,7 +111,7 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
             <line x1={component.position.x - 5} y1={component.position.y - 7} x2={component.position.x - 5} y2={component.position.y + 7} stroke="black" strokeWidth="3" />
             <line x1={component.position.x + 5} y1={component.position.y - 15} x2={component.position.x + 5} y2={component.position.y + 15} stroke="black" strokeWidth="1" />
             <line x1={component.position.x + 5} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
-            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}V</text>
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{formatValue(component.value, 'battery')}</text>
           </g>
         );
       case 'dcCurrentSource':
@@ -88,7 +122,7 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
             <line x1={component.position.x - 10} y1={component.position.y} x2={component.position.x + 10} y2={component.position.y} stroke="black" strokeWidth="2" />
             <polygon points={`${component.position.x},${component.position.y - 10} ${component.position.x + 10},${component.position.y} ${component.position.x},${component.position.y + 10}`} fill="black" />
             <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
-            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}A</text>
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{formatValue(component.value, 'dcCurrentSource')}</text>
           </g>
         );
       case 'acVoltageSource':
@@ -101,7 +135,7 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
                       Q${component.position.x + 5},${component.position.y + 10} ${component.position.x + 10},${component.position.y}`} 
                   fill="none" stroke="black" strokeWidth="2" />
             <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
-            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}V~</text>
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{formatValue(component.value, 'acVoltageSource')}</text>
           </g>
         );
       case 'acCurrentSource':
@@ -115,7 +149,7 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
                   fill="none" stroke="black" strokeWidth="2" />
             <polygon points={`${component.position.x + 5},${component.position.y - 10} ${component.position.x + 15},${component.position.y} ${component.position.x + 5},${component.position.y + 10}`} fill="black" />
             <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
-            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}A~</text>
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{formatValue(component.value, 'acCurrentSource')}</text>
           </g>
         );
       case 'squareWaveSource':
@@ -131,7 +165,7 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
                       L${component.position.x + 10},${component.position.y + 5}`} 
                   fill="none" stroke="black" strokeWidth="2" />
             <line x1={component.position.x + 20} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
-            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{component.value}Hz</text>
+            <text x={component.position.x} y={component.position.y - 25} textAnchor="middle" fontSize="12">{formatValue(component.value, 'squareWaveSource')}</text>
           </g>
         );
       case 'diode':

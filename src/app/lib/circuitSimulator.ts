@@ -79,10 +79,11 @@ function calculateSignal(component: Component, time: number): number {
       const freq = component.value; // Frequency in Hz
       const period = 1 / freq;
       const dutyCycle = component.properties.dutyCycle as number || 0.5; // Default 50% duty cycle
+      const amplitude = component.properties.amplitude as number || 5; // Default 5V amplitude
       
       // Check if in the high part of the cycle
       const normalizedTime = (time % period) / period;
-      return normalizedTime < dutyCycle ? component.value : 0;
+      return normalizedTime < dutyCycle ? amplitude : 0;
       
     case 'ground':
       // Ground is always 0V
@@ -114,10 +115,30 @@ export function getProbeableNodes(circuit: Circuit): Array<{id: string, label: s
       ];
       return signalSources.includes(component.type);
     })
-    .map(component => ({
-      id: component.id,
-      label: `${component.type} (${component.value}${getUnitForComponent(component.type)})`
-    }));
+    .map(component => {
+      let label = `${component.type}`;
+      
+      // Add specific details based on component type
+      switch(component.type) {
+        case 'acVoltageSource':
+        case 'acCurrentSource':
+          const freq = component.properties.frequency as number || 60;
+          label += ` (${component.value}${getUnitForComponent(component.type)}, ${freq}Hz)`;
+          break;
+        case 'squareWaveSource':
+          const dutyCycle = component.properties.dutyCycle as number || 0.5;
+          const amplitude = component.properties.amplitude as number || 5;
+          label += ` (${component.value}Hz, ${amplitude}V, ${(dutyCycle * 100).toFixed(0)}%)`;
+          break;
+        default:
+          label += ` (${component.value}${getUnitForComponent(component.type)})`;
+      }
+      
+      return {
+        id: component.id,
+        label
+      };
+    });
 }
 
 /**
