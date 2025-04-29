@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Circuit, Point, createComponent, ComponentType } from '../lib/circuitEngine';
 import CircuitComponent from './CircuitComponent';
 import WireComponent from './WireComponent';
+import Oscilloscope from './Oscilloscope';
+import { simulateCircuit, SimulationResult, getProbeableNodes } from '../lib/circuitSimulator';
 
 interface CircuitBoardProps {
   initialCircuit?: Circuit;
@@ -17,6 +19,12 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
   const [currentTool, setCurrentTool] = useState<ComponentType | 'select'>('select');
   const boardRef = useRef<SVGSVGElement>(null);
   const gridSize = 20;
+  
+  // Simulation state
+  const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
+  const [showOscilloscope, setShowOscilloscope] = useState(false);
+  const [selectedProbes, setSelectedProbes] = useState<string[]>([]);
+  const [availableProbes, setAvailableProbes] = useState<Array<{id: string, label: string}>>([]);
   
   // Update parent component when circuit changes
   useEffect(() => {
@@ -240,6 +248,41 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
     return gridLines;
   };
   
+  // Run the circuit simulation
+  const runSimulation = () => {
+    if (circuit.components.length === 0) {
+      alert('Add components to the circuit before running simulation');
+      return;
+    }
+    
+    // Get nodes that can be probed
+    const probeableNodes = getProbeableNodes(circuit);
+    setAvailableProbes(probeableNodes);
+    
+    // Select first node as default if none selected
+    if (selectedProbes.length === 0 && probeableNodes.length > 0) {
+      setSelectedProbes([probeableNodes[0].id]);
+    }
+    
+    // Run the simulation
+    const result = simulateCircuit(circuit);
+    setSimulationResult(result);
+    
+    // Show the oscilloscope
+    setShowOscilloscope(true);
+  };
+  
+  // Toggle a probe selection
+  const toggleProbe = (probeId: string) => {
+    setSelectedProbes(prev => {
+      if (prev.includes(probeId)) {
+        return prev.filter(id => id !== probeId);
+      } else {
+        return [...prev, probeId];
+      }
+    });
+  };
+  
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2 p-2 bg-gray-100 rounded">
@@ -354,6 +397,8 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
               setCircuit({ components: [], wires: [] });
               setSelectedComponentId(null);
               setSelectedWireId(null);
+              setSimulationResult(null);
+              setShowOscilloscope(false);
             }
           }}
         >
@@ -362,14 +407,44 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
         
         <button 
           className="px-3 py-1 bg-green-500 text-white rounded"
-          onClick={() => {
-            // This would typically trigger a simulation
-            alert('Simulation feature will be implemented in the future');
-          }}
+          onClick={runSimulation}
         >
           Run Simulation
         </button>
       </div>
+      
+      {/* Oscilloscope Section */}
+      {showOscilloscope && (
+        <div className="mt-4">
+          {/* Probe selection */}
+          {availableProbes.length > 0 && (
+            <div className="mb-4 p-3 bg-gray-100 rounded">
+              <h3 className="text-lg font-bold mb-2">Select Probes</h3>
+              <div className="flex flex-wrap gap-2">
+                {availableProbes.map(probe => (
+                  <label key={probe.id} className="flex items-center cursor-pointer p-2 border rounded hover:bg-gray-200">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedProbes.includes(probe.id)}
+                      onChange={() => toggleProbe(probe.id)}
+                      className="mr-2"
+                    />
+                    <span>{probe.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Oscilloscope display */}
+          <Oscilloscope 
+            simulationResult={simulationResult} 
+            nodeIds={selectedProbes}
+            width={800}
+            height={400}
+          />
+        </div>
+      )}
     </div>
   );
 } 
