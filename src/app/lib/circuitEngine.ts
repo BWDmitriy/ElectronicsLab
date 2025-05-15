@@ -54,13 +54,18 @@ export function createComponent(type: ComponentType, position: Point, value: num
   // Default terminals based on component type
   const terminals: Point[] = [];
   
-  // Set default terminals (left and right for most components)
-  terminals.push({ x: position.x - 40, y: position.y });
-  terminals.push({ x: position.x + 40, y: position.y });
-  
-  // Additional terminals for specific components
-  if (type === 'transistor') {
-    terminals.push({ x: position.x, y: position.y + 40 });
+  // Special case for ground - only one terminal at the top
+  if (type === 'ground') {
+    terminals.push({ x: position.x, y: position.y - 20 });
+  } else {
+    // Set default terminals (left and right for most components)
+    terminals.push({ x: position.x - 40, y: position.y });
+    terminals.push({ x: position.x + 40, y: position.y });
+    
+    // Additional terminals for specific components
+    if (type === 'transistor') {
+      terminals.push({ x: position.x, y: position.y + 40 });
+    }
   }
   
   return {

@@ -103,7 +103,7 @@ export default function CircuitComponent({
         );
       case 'ground':
         return (
-          <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
+          <g>
             <line x1={component.position.x} y1={component.position.y - 20} x2={component.position.x} y2={component.position.y + 10} stroke="black" strokeWidth="2" />
             <line x1={component.position.x - 15} y1={component.position.y + 10} x2={component.position.x + 15} y2={component.position.y + 10} stroke="black" strokeWidth="2" />
             <line x1={component.position.x - 10} y1={component.position.y + 15} x2={component.position.x + 10} y2={component.position.y + 15} stroke="black" strokeWidth="2" />

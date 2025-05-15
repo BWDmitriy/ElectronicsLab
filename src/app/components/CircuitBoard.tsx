@@ -188,14 +188,37 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
         }
       }
       
-      // Rotate selected component
+      // Rotate selected component (except ground)
       if (e.key === 'r' && selectedComponentId) {
         setCircuit(prev => {
+          const selectedComponent = prev.components.find(comp => comp.id === selectedComponentId);
+          // Don't rotate ground components
+          if (selectedComponent && selectedComponent.type === 'ground') {
+            return prev;
+          }
+          
           const updatedComponents = prev.components.map(comp => {
             if (comp.id === selectedComponentId) {
+              // Calculate the new rotation angle
+              const newRotation = (comp.rotation + 90) % 360;
+              
+              // Rotate terminals around the component center
+              const rotatedTerminals = comp.terminals.map(terminal => {
+                // Calculate terminal position relative to component center
+                const relX = terminal.x - comp.position.x;
+                const relY = terminal.y - comp.position.y;
+                
+                // Rotate 90 degrees (x' = -y, y' = x)
+                const rotatedX = -relY + comp.position.x;
+                const rotatedY = relX + comp.position.y;
+                
+                return { x: rotatedX, y: rotatedY };
+              });
+              
               return {
                 ...comp,
-                rotation: (comp.rotation + 90) % 360
+                rotation: newRotation,
+                terminals: rotatedTerminals
               };
             }
             return comp;
@@ -500,6 +523,50 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
               onValueChange={handleComponentValueChange}
               onPropertyChange={handleComponentPropertyChange}
             />
+            
+            {/* Rotation button - don't show for ground components */}
+            {selectedComponent.type !== 'ground' && (
+              <button 
+                className="mt-2 px-3 py-1 bg-blue-500 text-white rounded w-full"
+                onClick={() => {
+                  setCircuit(prev => {
+                    const updatedComponents = prev.components.map(comp => {
+                      if (comp.id === selectedComponent.id) {
+                        // Calculate the new rotation angle
+                        const newRotation = (comp.rotation + 90) % 360;
+                        
+                        // Rotate terminals around the component center
+                        const rotatedTerminals = comp.terminals.map(terminal => {
+                          // Calculate terminal position relative to component center
+                          const relX = terminal.x - comp.position.x;
+                          const relY = terminal.y - comp.position.y;
+                          
+                          // Rotate 90 degrees (x' = -y, y' = x)
+                          const rotatedX = -relY + comp.position.x;
+                          const rotatedY = relX + comp.position.y;
+                          
+                          return { x: rotatedX, y: rotatedY };
+                        });
+                        
+                        return {
+                          ...comp,
+                          rotation: newRotation,
+                          terminals: rotatedTerminals
+                        };
+                      }
+                      return comp;
+                    });
+                    
+                    return {
+                      ...prev,
+                      components: updatedComponents
+                    };
+                  });
+                }}
+              >
+                Rotate 90° (or press &apos;r&apos;)
+              </button>
+            )}
           </div>
         )}
       </div>
