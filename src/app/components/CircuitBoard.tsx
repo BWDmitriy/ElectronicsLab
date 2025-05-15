@@ -443,8 +443,8 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
         </button>
       </div>
       
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="flex-grow border border-gray-300 rounded overflow-hidden">
+      <div className="relative">
+        <div className="w-full border border-gray-300 rounded overflow-hidden">
           <svg 
             ref={boardRef} 
             width="100%" 
@@ -480,7 +480,7 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
         </div>
         
         {selectedComponent && (
-          <div className="w-full md:w-80">
+          <div className="absolute top-0 right-0 w-80 m-2 z-10">
             <PropertiesPanel
               component={selectedComponent}
               onValueChange={handleComponentValueChange}
