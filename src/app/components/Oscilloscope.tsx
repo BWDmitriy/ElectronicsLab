@@ -9,6 +9,7 @@ interface OscilloscopeProps {
   colors?: string[];
   width?: number;
   height?: number;
+  availableProbes?: Array<{id: string, label: string}>;
 }
 
 // Default colors for oscilloscope channels
@@ -28,7 +29,8 @@ export default function Oscilloscope({
   nodeIds,
   colors = DEFAULT_COLORS,
   width = 800,
-  height = 400
+  height = 400,
+  availableProbes = []
 }: OscilloscopeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [timeScale, setTimeScale] = useState(1.0);
@@ -191,6 +193,23 @@ export default function Oscilloscope({
     <div className="flex flex-col p-4 border rounded-lg bg-gray-900 shadow-lg w-full max-w-full overflow-auto">
       <h2 className="text-xl font-bold mb-4 text-gray-200">Oscilloscope</h2>
       
+      {simulationResult && (
+        <div className="mb-4 px-3 py-2 bg-gray-800 rounded text-xs text-gray-300">
+          <div className="mb-1">
+            <span className="font-bold">Circuit Analysis:</span> {
+              simulationResult.analysisResults.hasConnectivity 
+                ? `${simulationResult.analysisResults.connectedComponents.size} connected components` 
+                : 'No connected components detected'
+            }
+          </div>
+          {simulationResult.analysisResults.analyzedCircuit.groundNodeId && (
+            <div>
+              <span className="font-bold">Ground Reference:</span> Found
+            </div>
+          )}
+        </div>
+      )}
+      
       <div className="relative">
         <canvas 
           ref={canvasRef}
@@ -202,6 +221,22 @@ export default function Oscilloscope({
         {!simulationResult && (
           <div className="absolute inset-0 flex items-center justify-center text-gray-400">
             Run simulation to see signals
+          </div>
+        )}
+        
+        {simulationResult && nodeIds.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+            No probes selected. Select components to view waveforms.
+          </div>
+        )}
+        
+        {simulationResult && !simulationResult.analysisResults.hasConnectivity && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-amber-500 bg-black bg-opacity-80 p-4">
+            <span className="text-xl mb-2">⚠️ No connected circuit detected</span>
+            <p className="text-center max-w-md text-sm">
+              Components need to be connected to form a complete circuit.
+              Connect components by placing their terminals close together or adding wires.
+            </p>
           </div>
         )}
       </div>
@@ -265,19 +300,27 @@ export default function Oscilloscope({
       </div>
       
       {/* Signal legend */}
-      {nodeIds.length > 0 && (
+      {nodeIds.length > 0 && simulationResult && (
         <div className="mt-4">
           <h3 className="text-sm font-bold mb-2 text-gray-300">Channels</h3>
           <div className="flex flex-wrap gap-4">
-            {nodeIds.map((nodeId, index) => (
-              <div key={nodeId} className="flex items-center">
-                <div 
-                  className="w-4 h-4 mr-2" 
-                  style={{ backgroundColor: colors[index % colors.length] }}
-                />
-                <span className="text-sm text-gray-300">Channel {index + 1}</span>
-              </div>
-            ))}
+            {nodeIds.map((nodeId, index) => {
+              const isConnected = simulationResult.analysisResults.connectedComponents.has(nodeId);
+              const probe = availableProbes.find(p => p.id === nodeId);
+              const label = probe?.label || `Channel ${index + 1}`;
+              
+              return (
+                <div key={nodeId} className="flex items-center">
+                  <div 
+                    className="w-4 h-4 mr-2" 
+                    style={{ backgroundColor: colors[index % colors.length] }}
+                  />
+                  <span className={`text-sm ${isConnected ? 'text-gray-300' : 'text-gray-500'}`}>
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

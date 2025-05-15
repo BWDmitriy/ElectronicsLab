@@ -261,18 +261,26 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
       return;
     }
     
+    // Run the simulation
+    const result = simulateCircuit(circuit);
+    setSimulationResult(result);
+    
     // Get nodes that can be probed
     const probeableNodes = getProbeableNodes(circuit);
     setAvailableProbes(probeableNodes);
     
-    // Select first node as default if none selected
-    if (selectedProbes.length === 0 && probeableNodes.length > 0) {
-      setSelectedProbes([probeableNodes[0].id]);
-    }
+    // Select connected probes by default
+    const connectedProbes = probeableNodes
+      .filter(probe => result.analysisResults.connectedComponents.has(probe.id))
+      .map(probe => probe.id);
     
-    // Run the simulation
-    const result = simulateCircuit(circuit);
-    setSimulationResult(result);
+    if (connectedProbes.length > 0) {
+      setSelectedProbes(connectedProbes.slice(0, 3)); // Select up to 3 connected probes
+    } else if (probeableNodes.length > 0) {
+      setSelectedProbes([probeableNodes[0].id]);
+    } else {
+      setSelectedProbes([]);
+    }
     
     // Show the oscilloscope
     setShowOscilloscope(true);
@@ -467,15 +475,21 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
             ))}
             
             {/* Components */}
-            {circuit.components.map(component => (
-              <CircuitComponent 
-                key={component.id} 
-                component={component} 
-                selected={component.id === selectedComponentId} 
-                onClick={handleComponentClick} 
-                onMove={moveComponent} 
-              />
-            ))}
+            {circuit.components.map(component => {
+              // Check if component is connected (when simulation results exist)
+              const isConnected = simulationResult?.analysisResults?.connectedComponents?.has(component.id) || false;
+              
+              return (
+                <CircuitComponent 
+                  key={component.id} 
+                  component={component} 
+                  selected={component.id === selectedComponentId} 
+                  onClick={handleComponentClick} 
+                  onMove={moveComponent}
+                  isConnected={isConnected}
+                />
+              );
+            })}
           </svg>
         </div>
         
@@ -543,6 +557,7 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
             nodeIds={selectedProbes}
             width={800}
             height={400}
+            availableProbes={availableProbes}
           />
         </div>
       )}

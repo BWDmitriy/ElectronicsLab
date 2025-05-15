@@ -8,9 +8,16 @@ interface CircuitComponentProps {
   selected: boolean;
   onClick: (id: string) => void;
   onMove: (id: string, x: number, y: number) => void;
+  isConnected?: boolean;
 }
 
-export default function CircuitComponent({ component, selected, onClick, onMove }: CircuitComponentProps) {
+export default function CircuitComponent({ 
+  component, 
+  selected, 
+  onClick, 
+  onMove,
+  isConnected = false
+}: CircuitComponentProps) {
   const [dragging, setDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
 
@@ -233,14 +240,30 @@ export default function CircuitComponent({ component, selected, onClick, onMove 
     }
   }, [dragging, handleMouseMove, handleMouseUp]);
 
+  // Draw terminal connection points
+  const renderTerminals = () => {
+    return component.terminals.map((terminal, index) => (
+      <circle
+        key={`terminal-${index}`}
+        cx={terminal.x}
+        cy={terminal.y}
+        r={5}
+        fill={isConnected ? "#4CAF50" : "#999"}
+        stroke="black"
+        strokeWidth={1}
+      />
+    ));
+  };
+
   return (
     <g 
-      className={`circuit-component ${selected ? 'selected' : ''}`} 
+      className={`circuit-component ${selected ? 'selected' : ''} ${isConnected ? 'connected' : 'disconnected'}`} 
       onClick={(e) => e.stopPropagation()}
       onMouseDown={handleMouseDown}
-      style={{ cursor: selected ? 'move' : 'pointer' }}
+      style={{ cursor: selected ? 'move' : 'pointer', opacity: isConnected ? 1 : 0.7 }}
     >
       {getComponentSymbol(component.type)}
+      {renderTerminals()}
       {selected && (
         <rect 
           x={component.position.x - 45} 

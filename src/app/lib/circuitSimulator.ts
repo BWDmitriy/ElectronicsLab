@@ -1,10 +1,17 @@
 import { Circuit, Component, ComponentType } from './circuitEngine';
+import { analyzeCircuit, solveResistiveCircuit, areComponentsConnected, AnalyzedCircuit } from './circuitAnalysis';
 
 // Data structure to hold simulation results
 export interface SimulationResult {
   time: number[];
   signals: {
     [nodeId: string]: number[];
+  };
+  nodeVoltages: Map<string, number>;
+  analysisResults: {
+    analyzedCircuit: AnalyzedCircuit;
+    hasConnectivity: boolean;
+    connectedComponents: Set<string>;
   };
 }
 
@@ -23,6 +30,15 @@ export function simulateCircuit(circuit: Circuit): SimulationResult {
     (_, i) => (i * SIMULATION_TIME) / SIMULATION_POINTS
   );
   
+  // Analyze circuit connectivity
+  const analyzedCircuit = analyzeCircuit(circuit);
+  
+  // Identify which components are connected to at least one source
+  const connectedComponents = findConnectedComponents(analyzedCircuit);
+  
+  // Solve the resistive circuit (this gives us DC operating point)
+  const nodeVoltages = solveResistiveCircuit(analyzedCircuit);
+  
   // Maps node IDs to their voltage values over time
   const signals: { [nodeId: string]: number[] } = {};
   
@@ -31,27 +47,88 @@ export function simulateCircuit(circuit: Circuit): SimulationResult {
     signals[component.id] = Array(SIMULATION_POINTS).fill(0);
   });
   
-  // Simple simulation algorithm
+  // Simple simulation algorithm with connectivity awareness
   timePoints.forEach((time, index) => {
     // Process each component and generate its output signals
     circuit.components.forEach(component => {
-      signals[component.id][index] = calculateSignal(component, time);
+      // Only simulate connected components
+      const isConnected = connectedComponents.has(component.id);
+      const signalValue = isConnected ? 
+        calculateSignal(component, time, analyzedCircuit, nodeVoltages) : 0;
+        
+      signals[component.id][index] = signalValue;
     });
-    
-    // In a real simulator, we would solve for all node voltages here
-    // using methods like nodal analysis or modified nodal analysis
   });
   
   return {
     time: timePoints,
-    signals
+    signals,
+    nodeVoltages,
+    analysisResults: {
+      analyzedCircuit,
+      hasConnectivity: connectedComponents.size > 0,
+      connectedComponents
+    }
   };
+}
+
+/**
+ * Find components that are connected to voltage or current sources
+ */
+function findConnectedComponents(analyzedCircuit: AnalyzedCircuit): Set<string> {
+  const { components } = analyzedCircuit;
+  const connectedComponents = new Set<string>();
+  
+  // Find source components
+  const sourceComponents = components.filter(c => 
+    c.type === 'voltageSource' || c.type === 'battery' || 
+    c.type === 'acVoltageSource' || c.type === 'acCurrentSource' || 
+    c.type === 'dcCurrentSource' || c.type === 'squareWaveSource'
+  );
+  
+  // Add source components themselves
+  sourceComponents.forEach(source => {
+    connectedComponents.add(source.id);
+  });
+  
+  // Find components connected to sources
+  components.forEach(component => {
+    for (const source of sourceComponents) {
+      if (areComponentsConnected(component.id, source.id, analyzedCircuit)) {
+        connectedComponents.add(component.id);
+        break;
+      }
+    }
+  });
+  
+  return connectedComponents;
 }
 
 /**
  * Calculate signal value for a component at a specific time point
  */
-function calculateSignal(component: Component, time: number): number {
+function calculateSignal(
+  component: Component, 
+  time: number, 
+  analyzedCircuit: AnalyzedCircuit,
+  nodeVoltages: Map<string, number>
+): number {
+  const { nodes } = analyzedCircuit;
+  
+  // Find the nodes connected to this component's terminals
+  const terminalNodes = component.terminals.map((_, idx) => {
+    return nodes.find(node => 
+      node.components.some(comp => 
+        comp.componentId === component.id && comp.terminalIndex === idx
+      )
+    );
+  }).filter(Boolean);
+  
+  // Get the voltage values at these nodes
+  const terminalVoltages = terminalNodes.map(node => 
+    node ? nodeVoltages.get(node.id) || 0 : 0
+  );
+  
   switch (component.type) {
     case 'battery':
     case 'voltageSource':
@@ -90,14 +167,27 @@ function calculateSignal(component: Component, time: number): number {
       return 0;
       
     case 'resistor':
+      // For a resistor, we calculate the current through it
+      if (terminalVoltages.length === 2) {
+        const voltageDrop = Math.abs(terminalVoltages[1] - terminalVoltages[0]);
+        const current = voltageDrop / component.value; // I = V/R
+        return current; // Return current for resistors
+      }
+      return 0;
+      
     case 'capacitor':
+      // Basic approximation for capacitor
+      if (terminalVoltages.length === 2) {
+        return terminalVoltages[1] - terminalVoltages[0]; // Return voltage across capacitor
+      }
+      return 0;
+      
     case 'inductor':
     case 'diode':
     case 'transistor':
     default:
-      // For passive components, just return 0 in this simple simulation
-      // In a real simulator, these would be calculated based on circuit topology
-      return 0;
+      // For passive components, just return voltage at terminal 1
+      return terminalVoltages[1] || 0;
   }
 }
 
@@ -105,18 +195,26 @@ function calculateSignal(component: Component, time: number): number {
  * Get a list of nodes that can be probed in the oscilloscope
  */
 export function getProbeableNodes(circuit: Circuit): Array<{id: string, label: string}> {
+  // Analyze the circuit to get connectivity
+  const analyzedCircuit = analyzeCircuit(circuit);
+  const connectedComponents = findConnectedComponents(analyzedCircuit);
+  
   return circuit.components
     .filter(component => {
-      // Only show components that produce signals
+      // Only show components that produce signals and are connected
       const signalSources: ComponentType[] = [
         'voltageSource', 'currentSource', 'battery', 
         'dcCurrentSource', 'acVoltageSource', 'acCurrentSource', 
-        'squareWaveSource'
+        'squareWaveSource', 'resistor', 'capacitor'
       ];
-      return signalSources.includes(component.type);
+      return signalSources.includes(component.type) && 
+             connectedComponents.has(component.id);
     })
     .map(component => {
       let label = `${component.type}`;
+      
+      // Add connection status
+      const isConnected = connectedComponents.has(component.id);
       
       // Add specific details based on component type
       switch(component.type) {
@@ -130,9 +228,15 @@ export function getProbeableNodes(circuit: Circuit): Array<{id: string, label: s
           const amplitude = component.properties.amplitude as number || 5;
           label += ` (${component.value}Hz, ${amplitude}V, ${(dutyCycle * 100).toFixed(0)}%)`;
           break;
+        case 'resistor': 
+          label += ` (${component.value}${getUnitForComponent(component.type)})`;
+          break;
         default:
           label += ` (${component.value}${getUnitForComponent(component.type)})`;
       }
+      
+      // Add connection status indicator
+      label += isConnected ? ' [Connected]' : ' [Not Connected]';
       
       return {
         id: component.id,
