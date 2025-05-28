@@ -1,5 +1,5 @@
 import { Circuit, Component, ComponentType } from './circuitEngine';
-import { analyzeCircuit, solveResistiveCircuit, areComponentsConnected, AnalyzedCircuit } from './circuitAnalysis';
+import { analyzeCircuit, solveCircuit, areComponentsConnected, AnalyzedCircuit } from './circuitAnalysis';
 
 // Data structure to hold simulation results
 export interface SimulationResult {
@@ -37,7 +37,8 @@ export function simulateCircuit(circuit: Circuit): SimulationResult {
   const connectedComponents = findConnectedComponents(analyzedCircuit);
   
   // Solve the resistive circuit (this gives us DC operating point)
-  const nodeVoltages = solveResistiveCircuit(analyzedCircuit);
+  const analysisResult = solveCircuit(analyzedCircuit);
+  const nodeVoltages = analysisResult.nodeVoltages;
   
   // Maps node IDs to their voltage values over time
   const signals: { [nodeId: string]: number[] } = {};

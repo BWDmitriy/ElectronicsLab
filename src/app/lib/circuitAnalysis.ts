@@ -1,384 +1,398 @@
-import { Component, Wire, Circuit, Point } from './circuitEngine';
+import { Circuit, Component } from './circuitEngine';
 
-// Represents a node in the circuit (a connection point)
+// Node in the circuit analysis
 export interface CircuitNode {
   id: string;
+  voltage: number;
   components: Array<{
     componentId: string;
     terminalIndex: number;
   }>;
 }
 
-// Represents the analyzed circuit with nodes and connections
+// Branch in the circuit (between two nodes)
+export interface CircuitBranch {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  component: Component;
+  current: number; // Current flowing through this branch (positive = from -> to)
+  voltage: number; // Voltage drop across this branch
+}
+
+// Complete analyzed circuit
 export interface AnalyzedCircuit {
   nodes: CircuitNode[];
+  branches: CircuitBranch[];
   components: Component[];
   groundNodeId: string | null;
 }
 
-// Distance threshold for considering terminals connected
-const CONNECTION_THRESHOLD = 20;
+// Circuit analysis results
+export interface CircuitAnalysisResult {
+  analyzedCircuit: AnalyzedCircuit;
+  nodeVoltages: Map<string, number>;
+  branchCurrents: Map<string, number>;
+  componentMeasurements: Map<string, { voltage: number; current: number }>;
+  hasConnectivity: boolean;
+  connectedComponents: Set<string>;
+}
 
 /**
- * Analyze a circuit to find connected components and build a nodal representation
+ * Analyze circuit connectivity and create nodes/branches
  */
 export function analyzeCircuit(circuit: Circuit): AnalyzedCircuit {
-  const { components, wires } = circuit;
+  const nodes: CircuitNode[] = [];
+  const branches: CircuitBranch[] = [];
+  const nodeMap = new Map<string, string>(); // terminal -> nodeId mapping
   
-  // Step 1: Find direct connections via wires
-  const wireConnections = findWireConnections(components, wires);
+  // Create nodes by grouping connected terminals
+  let nodeCounter = 0;
   
-  // Step 2: Find terminal connections by proximity when no wires
-  const terminalConnections = findTerminalConnections(components);
+  // First pass: create nodes for each unique connection point
+  circuit.components.forEach(component => {
+    component.terminals.forEach((terminal, terminalIndex) => {
+      const terminalKey = `${component.id}:${terminalIndex}`;
+      
+      // Check if this terminal is already connected to a node via wires
+      let assignedNodeId: string | null = null;
+      
+      circuit.wires.forEach(wire => {
+        if (wire.from === terminalKey || wire.to === terminalKey) {
+          const otherTerminal = wire.from === terminalKey ? wire.to : wire.from;
+          if (nodeMap.has(otherTerminal)) {
+            assignedNodeId = nodeMap.get(otherTerminal)!;
+          }
+        }
+      });
+      
+      if (!assignedNodeId) {
+        assignedNodeId = `node_${nodeCounter++}`;
+        nodes.push({
+          id: assignedNodeId,
+          voltage: 0,
+          components: []
+        });
+      }
+      
+      nodeMap.set(terminalKey, assignedNodeId);
+      
+      // Add component to node
+      const node = nodes.find(n => n.id === assignedNodeId);
+      if (node) {
+        node.components.push({
+          componentId: component.id,
+          terminalIndex
+        });
+      }
+    });
+  });
   
-  // Step 3: Merge the two connection sets
-  const allConnections = [...wireConnections, ...terminalConnections];
+  // Merge nodes connected by wires
+  circuit.wires.forEach(wire => {
+    const fromNodeId = nodeMap.get(wire.from);
+    const toNodeId = nodeMap.get(wire.to);
+    
+    if (fromNodeId && toNodeId && fromNodeId !== toNodeId) {
+      // Merge nodes
+      const fromNode = nodes.find(n => n.id === fromNodeId);
+      const toNode = nodes.find(n => n.id === toNodeId);
+      
+      if (fromNode && toNode) {
+        // Move all components from toNode to fromNode
+        fromNode.components.push(...toNode.components);
+        
+        // Update nodeMap for all terminals that pointed to toNode
+        for (const [terminal, nodeId] of nodeMap.entries()) {
+          if (nodeId === toNodeId) {
+            nodeMap.set(terminal, fromNodeId);
+          }
+        }
+        
+        // Remove the merged node
+        const toNodeIndex = nodes.findIndex(n => n.id === toNodeId);
+        if (toNodeIndex >= 0) {
+          nodes.splice(toNodeIndex, 1);
+        }
+      }
+    }
+  });
   
-  // Step 4: Build nodes from the connections (using union-find algorithm)
-  const nodes = buildNodesFromConnections(components, allConnections);
+  // Create branches for components that connect different nodes
+  circuit.components.forEach(component => {
+    if (component.terminals.length >= 2) {
+      const fromTerminal = `${component.id}:0`;
+      const toTerminal = `${component.id}:1`;
+      const fromNodeId = nodeMap.get(fromTerminal);
+      const toNodeId = nodeMap.get(toTerminal);
+      
+      if (fromNodeId && toNodeId && fromNodeId !== toNodeId) {
+        branches.push({
+          id: `branch_${component.id}`,
+          fromNodeId,
+          toNodeId,
+          component,
+          current: 0,
+          voltage: 0
+        });
+      }
+    }
+  });
   
-  // Step 5: Find ground node (if any)
-  const groundNodeId = findGroundNode(components, nodes);
+  // Find ground node (node connected to ground component)
+  let groundNodeId: string | null = null;
+  const groundComponent = circuit.components.find(comp => comp.type === 'ground');
+  if (groundComponent) {
+    const groundTerminal = `${groundComponent.id}:0`;
+    groundNodeId = nodeMap.get(groundTerminal) || null;
+  }
   
   return {
     nodes,
-    components,
+    branches,
+    components: circuit.components,
     groundNodeId
   };
 }
 
 /**
- * Find connections between components via wires
+ * Solve circuit using nodal analysis and Ohm's law
  */
-function findWireConnections(components: Component[], wires: Wire[]): Array<[string, number, string, number]> {
-  const connections: Array<[string, number, string, number]> = [];
-  
-  // Helper function to find closest terminal to a point
-  const findClosestTerminal = (componentId: string, point: Point): [number, number] => {
-    const component = components.find(c => c.id === componentId);
-    if (!component) return [-1, Infinity];
-    
-    let closestIndex = -1;
-    let closestDistance = Infinity;
-    
-    component.terminals.forEach((terminal, index) => {
-      const distance = Math.sqrt(
-        Math.pow(terminal.x - point.x, 2) + 
-        Math.pow(terminal.y - point.y, 2)
-      );
-      
-      if (distance < closestDistance) {
-        closestDistance = distance;
-        closestIndex = index;
-      }
-    });
-    
-    return [closestIndex, closestDistance];
-  };
-  
-  // Process each wire to find connections
-  wires.forEach(wire => {
-    if (wire.points.length < 2) return;
-    
-    // Parse from/to connections (format: componentId:terminalIndex)
-    const fromParts = wire.from.split(':');
-    const toParts = wire.to.split(':');
-    
-    if (fromParts.length === 2 && toParts.length === 2) {
-      const fromComponentId = fromParts[0];
-      const fromTerminalIndex = parseInt(fromParts[1], 10);
-      const toComponentId = toParts[0];
-      const toTerminalIndex = parseInt(toParts[1], 10);
-      
-      connections.push([
-        fromComponentId, fromTerminalIndex, 
-        toComponentId, toTerminalIndex
-      ]);
-    } else {
-      // For wires without explicit connections, infer from endpoints
-      const startPoint = wire.points[0];
-      const endPoint = wire.points[wire.points.length - 1];
-      
-      // Find components with terminals close to wire endpoints
-      for (const c1 of components) {
-        const [t1Index, t1Distance] = findClosestTerminal(c1.id, startPoint);
-        
-        if (t1Index >= 0 && t1Distance < CONNECTION_THRESHOLD) {
-          for (const c2 of components) {
-            if (c1.id === c2.id) continue; // Skip self-connections
-            
-            const [t2Index, t2Distance] = findClosestTerminal(c2.id, endPoint);
-            
-            if (t2Index >= 0 && t2Distance < CONNECTION_THRESHOLD) {
-              connections.push([c1.id, t1Index, c2.id, t2Index]);
-              break;
-            }
-          }
-        }
-      }
-    }
-  });
-  
-  return connections;
-}
-
-/**
- * Find connections between terminals by proximity (when no wires connect them)
- */
-function findTerminalConnections(components: Component[]): Array<[string, number, string, number]> {
-  const connections: Array<[string, number, string, number]> = [];
-  
-  // Find terminals that are close to each other
-  for (let i = 0; i < components.length; i++) {
-    const c1 = components[i];
-    
-    for (let t1Index = 0; t1Index < c1.terminals.length; t1Index++) {
-      const t1 = c1.terminals[t1Index];
-      
-      for (let j = i + 1; j < components.length; j++) {
-        const c2 = components[j];
-        
-        for (let t2Index = 0; t2Index < c2.terminals.length; t2Index++) {
-          const t2 = c2.terminals[t2Index];
-          
-          // Calculate distance between terminals
-          const distance = Math.sqrt(
-            Math.pow(t1.x - t2.x, 2) + 
-            Math.pow(t1.y - t2.y, 2)
-          );
-          
-          // If terminals are close enough, consider them connected
-          if (distance < CONNECTION_THRESHOLD) {
-            connections.push([c1.id, t1Index, c2.id, t2Index]);
-          }
-        }
-      }
-    }
-  }
-  
-  return connections;
-}
-
-/**
- * Build nodes from component connections using union-find algorithm
- */
-function buildNodesFromConnections(
-  components: Component[],
-  connections: Array<[string, number, string, number]>
-): CircuitNode[] {
-  // Create a map of terminal identifiers to node ids
-  const terminalToNodeMap = new Map<string, string>();
-  const nodes = new Map<string, CircuitNode>();
-  
-  // Helper function to get terminal identifier
-  const getTerminalId = (componentId: string, terminalIndex: number) => 
-    `${componentId}:${terminalIndex}`;
-  
-  // Initialize each terminal as its own node
-  components.forEach(component => {
-    component.terminals.forEach((_, index) => {
-      const terminalId = getTerminalId(component.id, index);
-      const nodeId = `node_${terminalId}`;
-      
-      terminalToNodeMap.set(terminalId, nodeId);
-      nodes.set(nodeId, {
-        id: nodeId,
-        components: [{
-          componentId: component.id,
-          terminalIndex: index
-        }]
-      });
-    });
-  });
-  
-  // Function to find the node id for a terminal (with path compression)
-  const findNodeId = (terminalId: string): string => {
-    const nodeId = terminalToNodeMap.get(terminalId);
-    if (!nodeId) return ''; // Should never happen if initialized properly
-    return nodeId;
-  };
-  
-  // Function to merge two nodes
-  const mergeNodes = (nodeId1: string, nodeId2: string) => {
-    if (nodeId1 === nodeId2) return;
-    
-    const node1 = nodes.get(nodeId1);
-    const node2 = nodes.get(nodeId2);
-    
-    if (!node1 || !node2) return;
-    
-    // Create a new merged node
-    const mergedNodeId = Math.random() < 0.5 ? nodeId1 : nodeId2; // Arbitrarily choose one ID
-    const mergedNode: CircuitNode = {
-      id: mergedNodeId,
-      components: [...node1.components, ...node2.components]
-    };
-    
-    // Update the node map
-    nodes.delete(nodeId1);
-    nodes.delete(nodeId2);
-    nodes.set(mergedNodeId, mergedNode);
-    
-    // Update terminal to node mappings
-    mergedNode.components.forEach(({ componentId, terminalIndex }) => {
-      const terminalId = getTerminalId(componentId, terminalIndex);
-      terminalToNodeMap.set(terminalId, mergedNodeId);
-    });
-  };
-  
-  // Process connections to merge nodes
-  connections.forEach(([comp1Id, term1Idx, comp2Id, term2Idx]) => {
-    const term1Id = getTerminalId(comp1Id, term1Idx);
-    const term2Id = getTerminalId(comp2Id, term2Idx);
-    
-    const nodeId1 = findNodeId(term1Id);
-    const nodeId2 = findNodeId(term2Id);
-    
-    if (nodeId1 && nodeId2) {
-      mergeNodes(nodeId1, nodeId2);
-    }
-  });
-  
-  // Return the final list of nodes
-  return Array.from(nodes.values());
-}
-
-/**
- * Find the ground node in the circuit (if any)
- */
-function findGroundNode(components: Component[], nodes: CircuitNode[]): string | null {
-  // Find ground components
-  const groundComponents = components.filter(c => c.type === 'ground');
-  
-  if (groundComponents.length === 0) {
-    return null;
-  }
-  
-  // Find the node containing a ground component
-  for (const node of nodes) {
-    for (const { componentId } of node.components) {
-      if (groundComponents.some(gc => gc.id === componentId)) {
-        return node.id;
-      }
-    }
-  }
-  
-  return null;
-}
-
-/**
- * Simple resistive circuit solver
- * This is a very basic implementation that handles voltage dividers and series resistors
- */
-export function solveResistiveCircuit(analyzedCircuit: AnalyzedCircuit): Map<string, number> {
-  const { nodes, components, groundNodeId } = analyzedCircuit;
-  
-  // Map to store voltage at each node
+export function solveCircuit(analyzedCircuit: AnalyzedCircuit): CircuitAnalysisResult {
+  const { nodes, branches, groundNodeId } = analyzedCircuit;
   const nodeVoltages = new Map<string, number>();
+  const branchCurrents = new Map<string, number>();
+  const componentMeasurements = new Map<string, { voltage: number; current: number }>();
   
-  // Set ground node to 0V
+  // Set ground voltage to 0V
   if (groundNodeId) {
     nodeVoltages.set(groundNodeId, 0);
-  } else if (nodes.length > 0) {
-    // If no ground, select the first node as reference (0V)
-    nodeVoltages.set(nodes[0].id, 0);
   }
   
-  // Find voltage sources
-  const voltageSources = components.filter(c => 
-    c.type === 'voltageSource' || 
-    c.type === 'battery' || 
-    c.type === 'acVoltageSource' ||
-    c.type === 'squareWaveSource'
-  );
-  
-  // Apply voltage source values to nodes
-  voltageSources.forEach(source => {
-    // Find the nodes connected to this source's terminals
-    const terminal0Node = nodes.find(node => 
-      node.components.some(comp => 
-        comp.componentId === source.id && comp.terminalIndex === 0
-      )
-    );
-    
-    const terminal1Node = nodes.find(node => 
-      node.components.some(comp => 
-        comp.componentId === source.id && comp.terminalIndex === 1
-      )
-    );
-    
-    if (terminal0Node && terminal1Node) {
-      // For simplicity, we'll set terminal0 to 0V and terminal1 to the source value
-      nodeVoltages.set(terminal0Node.id, 0);
-      
-      // For DC sources, use the value directly
-      if (source.type === 'voltageSource' || source.type === 'battery') {
-        nodeVoltages.set(terminal1Node.id, source.value);
-      }
-      // For AC sources, take the amplitude (peak value)
-      else if (source.type === 'acVoltageSource') {
-        nodeVoltages.set(terminal1Node.id, source.value);
-      }
-      // For square waves, use the high value (amplitude or default to source value)
-      else if (source.type === 'squareWaveSource') {
-        const amplitude = source.properties.amplitude as number || source.value;
-        nodeVoltages.set(terminal1Node.id, amplitude);
-      }
+  // Initialize all node voltages
+  nodes.forEach(node => {
+    if (node.id !== groundNodeId) {
+      nodeVoltages.set(node.id, 0);
     }
   });
   
-  // Find resistors
-  const resistors = components.filter(c => c.type === 'resistor');
+  // Find voltage sources and calculate total circuit resistance for series circuits
+  let totalVoltage = 0;
+  let totalResistance = 0;
+  let hasVoltageSource = false;
   
-  // Simple voltage divider calculations for series resistors
-  if (resistors.length >= 2 && voltageSources.length === 1) {
-    // Find if we have a simple resistor chain
-    // This is a very simplified approach that works for basic cases
+  // First pass: identify voltage sources and calculate total resistance
+  branches.forEach(branch => {
+    const { component } = branch;
     
-    // Calculate total resistance
-    const totalResistance = resistors.reduce((sum, r) => sum + r.value, 0);
+    if (component.type === 'voltageSource' || component.type === 'battery' || component.type === 'acVoltageSource') {
+      totalVoltage += component.value;
+      hasVoltageSource = true;
+    } else if (component.type === 'resistor') {
+      totalResistance += component.value;
+    } else if (component.type === 'ammeter') {
+      totalResistance += 0.001; // 1mΩ internal resistance
+    } else if (component.type === 'voltmeter') {
+      // Voltmeter in parallel doesn't add to series resistance
+      // We'll handle this separately
+    } else if (component.type === 'inductor') {
+      totalResistance += 0.001; // Very small resistance for DC
+    }
+    // Capacitors block DC current, so they don't contribute to DC resistance
+  });
+  
+  // Calculate total circuit current using Ohm's law (I = V_total / R_total)
+  const totalCurrent = hasVoltageSource && totalResistance > 0 ? totalVoltage / totalResistance : 0;
+  
+  console.log(`Circuit Analysis: V_total=${totalVoltage}V, R_total=${totalResistance}Ω, I_total=${totalCurrent}A`);
+  
+  // Second pass: set node voltages and calculate individual component values
+  
+  branches.forEach(branch => {
+    const { component, fromNodeId, toNodeId } = branch;
     
-    // Sort resistors by their position to try to determine the order
-    // This is a heuristic and will only work for simple layouts
-    const sortedResistors = [...resistors].sort((a, b) => a.position.y - b.position.y);
+    // For series circuits, current is the same through all components
+    let current = totalCurrent;
+    let voltage = 0;
     
-    // Assuming the voltage source is across the entire chain
-    const sourceVoltage = voltageSources[0].value;
+    switch (component.type) {
+      case 'voltageSource':
+      case 'battery':
+      case 'acVoltageSource':
+        // Voltage source maintains its voltage
+        voltage = component.value;
+        current = totalCurrent;
+        
+        // Set node voltages for voltage sources
+        if (fromNodeId === groundNodeId) {
+          nodeVoltages.set(toNodeId, component.value);
+        } else if (toNodeId === groundNodeId) {
+          nodeVoltages.set(fromNodeId, component.value);
+        }
+        break;
+        
+      case 'resistor':
+        // Voltage drop across resistor: V = I * R
+        voltage = totalCurrent * component.value;
+        current = totalCurrent;
+        break;
+        
+      case 'ammeter':
+        // Ammeter measures the circuit current
+        voltage = totalCurrent * 0.001; // Small voltage drop due to internal resistance
+        current = totalCurrent;
+        break;
+        
+      case 'voltmeter':
+        // Voltmeter measures voltage across its terminals
+        // For now, assume it measures the voltage of the node it's connected to
+        const fromVoltage = nodeVoltages.get(fromNodeId) || 0;
+        const toVoltage = nodeVoltages.get(toNodeId) || 0;
+        voltage = Math.abs(fromVoltage - toVoltage);
+        current = voltage / 1000000; // Very small current through high resistance
+        break;
+        
+      case 'currentSource':
+      case 'dcCurrentSource':
+      case 'acCurrentSource':
+        current = component.value;
+        voltage = current * totalResistance; // Voltage depends on circuit resistance
+        break;
+        
+      case 'capacitor':
+        // For DC analysis, capacitor blocks current
+        current = 0;
+        voltage = 0;
+        break;
+        
+      case 'inductor':
+        // For DC analysis, inductor acts like small resistor
+        voltage = totalCurrent * 0.001;
+        current = totalCurrent;
+        break;
+        
+      case 'diode':
+        // Simplified diode model
+        if (totalCurrent > 0) {
+          voltage = 0.7; // Forward voltage drop
+          current = totalCurrent;
+        } else {
+          voltage = 0;
+          current = 0;
+        }
+        break;
+        
+      case 'ground':
+        voltage = 0;
+        current = 0;
+        break;
+        
+      default:
+        current = 0;
+        voltage = 0;
+    }
     
-    // Calculate voltage at each point in the divider
-    let accumulatedResistance = 0;
-    let accumulatedVoltage = 0;
+    branch.current = current;
+    branch.voltage = voltage;
+    branchCurrents.set(branch.id, current);
     
-    sortedResistors.forEach(resistor => {
-      accumulatedResistance += resistor.value;
-      accumulatedVoltage = (accumulatedResistance / totalResistance) * sourceVoltage;
+    // Store measurements for the component
+    componentMeasurements.set(component.id, { 
+      voltage: Math.abs(voltage), 
+      current: Math.abs(current) 
+    });
+    
+    console.log(`Component ${component.type} (${component.id}): V=${voltage.toFixed(4)}V, I=${(current * 1000).toFixed(2)}mA`);
+  });
+  
+  // Update node voltages based on voltage drops
+  if (hasVoltageSource && groundNodeId) {
+    let runningVoltage = totalVoltage;
+    
+    branches.forEach(branch => {
+      const { component, fromNodeId, toNodeId } = branch;
       
-      // Find the node connected to the output of this resistor
-      const outputNode = nodes.find(node => 
-        node.components.some(comp => 
-          comp.componentId === resistor.id && comp.terminalIndex === 1
-        )
-      );
+      // Skip voltage sources as they set the initial voltage
+      if (component.type === 'voltageSource' || component.type === 'battery' || component.type === 'acVoltageSource') {
+        return;
+      }
       
-      if (outputNode) {
-        nodeVoltages.set(outputNode.id, accumulatedVoltage);
+      // For other components, subtract their voltage drop
+      if (component.type === 'resistor' || component.type === 'ammeter' || component.type === 'inductor') {
+        runningVoltage -= branch.voltage;
+        
+        // Set the voltage at the "to" node
+        if (fromNodeId !== groundNodeId && toNodeId !== groundNodeId) {
+          nodeVoltages.set(toNodeId, runningVoltage);
+        }
       }
     });
   }
   
-  return nodeVoltages;
+  // Determine connectivity
+  const connectedComponents = new Set<string>();
+  const hasConnectivity = branches.length > 0 && hasVoltageSource;
+  
+  if (hasConnectivity) {
+    branches.forEach(branch => {
+      connectedComponents.add(branch.component.id);
+    });
+  }
+  
+  return {
+    analyzedCircuit,
+    nodeVoltages,
+    branchCurrents,
+    componentMeasurements,
+    hasConnectivity,
+    connectedComponents
+  };
 }
 
 /**
- * Determine if two components are connected
+ * Check if two components are electrically connected
  */
-export function areComponentsConnected(comp1Id: string, comp2Id: string, analyzedCircuit: AnalyzedCircuit): boolean {
-  const { nodes } = analyzedCircuit;
+export function areComponentsConnected(componentId1: string, componentId2: string, analyzedCircuit: AnalyzedCircuit): boolean {
+  // Find nodes that contain these components
+  const component1Nodes = analyzedCircuit.nodes.filter(node => 
+    node.components.some(comp => comp.componentId === componentId1)
+  );
+  const component2Nodes = analyzedCircuit.nodes.filter(node => 
+    node.components.some(comp => comp.componentId === componentId2)
+  );
   
-  // Look for a node that contains both components
-  return nodes.some(node => {
-    const hasComp1 = node.components.some(c => c.componentId === comp1Id);
-    const hasComp2 = node.components.some(c => c.componentId === comp2Id);
-    return hasComp1 && hasComp2;
+  // Check if they share any nodes
+  return component1Nodes.some(node1 => 
+    component2Nodes.some(node2 => node1.id === node2.id)
+  );
+}
+
+/**
+ * Update component values with calculated measurements
+ */
+export function updateComponentMeasurements(circuit: Circuit, measurements: Map<string, { voltage: number; current: number }>): Circuit {
+  const updatedComponents = circuit.components.map(component => {
+    const measurement = measurements.get(component.id);
+    if (measurement) {
+      let newValue = component.value;
+      
+      // Update meter readings
+      if (component.type === 'ammeter') {
+        newValue = measurement.current;
+      } else if (component.type === 'voltmeter') {
+        newValue = measurement.voltage;
+      }
+      
+      return {
+        ...component,
+        value: newValue
+      };
+    }
+    return component;
   });
+  
+  return {
+    ...circuit,
+    components: updatedComponents
+  };
 } 

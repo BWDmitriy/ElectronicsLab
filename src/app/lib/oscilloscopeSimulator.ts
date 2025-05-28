@@ -121,8 +121,14 @@ export function getOscilloscopeProbes(circuit: Circuit, oscilloscopeId: string):
 
     const connectedComponent = circuit.components.find(comp => comp.id === connectedComponentId);
     if (connectedComponent) {
-      const probeColors = ['Red', 'Blue', 'Green', 'Orange'];
-      const probeLabel = `${probeColors[terminalIndex] || `Probe ${terminalIndex + 1}`}: ${connectedComponent.type} (${connectedComponent.value})`;
+      // Updated probe labels for Electronics Workbench layout:
+      // Terminal 0: Ground, 1: Channel A, 2: Channel B, 3: Input
+      const terminalNames = ['Ground', 'Channel A', 'Channel B', 'Input'];
+      const terminalColors = ['Black', 'Red', 'Blue', 'Green'];
+      const terminalName = terminalNames[terminalIndex] || `Terminal ${terminalIndex + 1}`;
+      const terminalColor = terminalColors[terminalIndex] || 'Gray';
+      
+      const probeLabel = `${terminalName} (${terminalColor}): ${connectedComponent.type} (${connectedComponent.value})`;
       
       probes.push({
         id: connectedComponentId,

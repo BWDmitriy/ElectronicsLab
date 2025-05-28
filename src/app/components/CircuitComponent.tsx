@@ -194,29 +194,96 @@ export default function CircuitComponent({
       case 'oscilloscope':
         return (
           <g>
-            {/* Main oscilloscope body */}
-            <rect x={component.position.x - 40} y={component.position.y - 30} width="80" height="60" fill="lightgray" stroke="black" strokeWidth="2" />
-            {/* Screen */}
-            <rect x={component.position.x - 30} y={component.position.y - 20} width="60" height="40" fill="darkgreen" stroke="black" strokeWidth="1" />
+            {/* Main oscilloscope body - wider rectangular shape */}
+            <rect x={component.position.x - 60} y={component.position.y - 40} width="120" height="80" fill="lightgray" stroke="black" strokeWidth="2" />
+            
+            {/* Graph/Screen area on the left side */}
+            <rect x={component.position.x - 55} y={component.position.y - 35} width="70" height="70" fill="darkgreen" stroke="black" strokeWidth="1" />
+            
             {/* Grid lines on screen */}
-            <line x1={component.position.x - 20} y1={component.position.y - 20} x2={component.position.x - 20} y2={component.position.y + 20} stroke="green" strokeWidth="0.5" />
-            <line x1={component.position.x - 10} y1={component.position.y - 20} x2={component.position.x - 10} y2={component.position.y + 20} stroke="green" strokeWidth="0.5" />
-            <line x1={component.position.x} y1={component.position.y - 20} x2={component.position.x} y2={component.position.y + 20} stroke="green" strokeWidth="0.5" />
-            <line x1={component.position.x + 10} y1={component.position.y - 20} x2={component.position.x + 10} y2={component.position.y + 20} stroke="green" strokeWidth="0.5" />
-            <line x1={component.position.x + 20} y1={component.position.y - 20} x2={component.position.x + 20} y2={component.position.y + 20} stroke="green" strokeWidth="0.5" />
-            <line x1={component.position.x - 30} y1={component.position.y - 10} x2={component.position.x + 30} y2={component.position.y - 10} stroke="green" strokeWidth="0.5" />
-            <line x1={component.position.x - 30} y1={component.position.y} x2={component.position.x + 30} y2={component.position.y} stroke="green" strokeWidth="0.5" />
-            <line x1={component.position.x - 30} y1={component.position.y + 10} x2={component.position.x + 30} y2={component.position.y + 10} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 45} y1={component.position.y - 35} x2={component.position.x - 45} y2={component.position.y + 35} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 35} y1={component.position.y - 35} x2={component.position.x - 35} y2={component.position.y + 35} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 25} y1={component.position.y - 35} x2={component.position.x - 25} y2={component.position.y + 35} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 15} y1={component.position.y - 35} x2={component.position.x - 15} y2={component.position.y + 35} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 5} y1={component.position.y - 35} x2={component.position.x - 5} y2={component.position.y + 35} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x + 5} y1={component.position.y - 35} x2={component.position.x + 5} y2={component.position.y + 35} stroke="green" strokeWidth="0.5" />
+            
+            <line x1={component.position.x - 55} y1={component.position.y - 25} x2={component.position.x + 15} y2={component.position.y - 25} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 55} y1={component.position.y - 15} x2={component.position.x + 15} y2={component.position.y - 15} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 55} y1={component.position.y - 5} x2={component.position.x + 15} y2={component.position.y - 5} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 55} y1={component.position.y + 5} x2={component.position.x + 15} y2={component.position.y + 5} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 55} y1={component.position.y + 15} x2={component.position.x + 15} y2={component.position.y + 15} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 55} y1={component.position.y + 25} x2={component.position.x + 15} y2={component.position.y + 25} stroke="green" strokeWidth="0.5" />
+            
+            {/* Center crosshair */}
+            <line x1={component.position.x - 55} y1={component.position.y} x2={component.position.x + 15} y2={component.position.y} stroke="green" strokeWidth="1" />
+            <line x1={component.position.x - 20} y1={component.position.y - 35} x2={component.position.x - 20} y2={component.position.y + 35} stroke="green" strokeWidth="1" />
+            
             {/* Sample waveform */}
-            <path d={`M${component.position.x - 25},${component.position.y} 
-                      Q${component.position.x - 20},${component.position.y - 8} ${component.position.x - 15},${component.position.y}
-                      Q${component.position.x - 10},${component.position.y + 8} ${component.position.x - 5},${component.position.y}
-                      Q${component.position.x},${component.position.y - 8} ${component.position.x + 5},${component.position.y}
-                      Q${component.position.x + 10},${component.position.y + 8} ${component.position.x + 15},${component.position.y}
-                      Q${component.position.x + 20},${component.position.y - 8} ${component.position.x + 25},${component.position.y}`} 
-                  fill="none" stroke="yellow" strokeWidth="1" />
+            <path d={`M${component.position.x - 50},${component.position.y} 
+                      Q${component.position.x - 45},${component.position.y - 12} ${component.position.x - 40},${component.position.y}
+                      Q${component.position.x - 35},${component.position.y + 12} ${component.position.x - 30},${component.position.y}
+                      Q${component.position.x - 25},${component.position.y - 12} ${component.position.x - 20},${component.position.y}
+                      Q${component.position.x - 15},${component.position.y + 12} ${component.position.x - 10},${component.position.y}
+                      Q${component.position.x - 5},${component.position.y - 12} ${component.position.x},${component.position.y}
+                      Q${component.position.x + 5},${component.position.y + 12} ${component.position.x + 10},${component.position.y}`} 
+                  fill="none" stroke="yellow" strokeWidth="1.5" />
+            
+            {/* Control panel area on the right */}
+            <rect x={component.position.x + 20} y={component.position.y - 35} width="35" height="70" fill="#f0f0f0" stroke="black" strokeWidth="1" />
+            
+            {/* Terminal labels */}
+            <text x={component.position.x + 25} y={component.position.y - 20} textAnchor="start" fontSize="8" fill="black">GND</text>
+            <text x={component.position.x + 25} y={component.position.y + 10} textAnchor="start" fontSize="8" fill="black">CH A</text>
+            <text x={component.position.x + 25} y={component.position.y + 25} textAnchor="start" fontSize="8" fill="black">CH B</text>
+            <text x={component.position.x + 45} y={component.position.y + 5} textAnchor="middle" fontSize="8" fill="black">IN</text>
+            
+            {/* Main label */}
+            <text x={component.position.x - 20} y={component.position.y + 55} textAnchor="middle" fontSize="12" fill="black">Oscilloscope</text>
+          </g>
+        );
+      case 'ammeter':
+        return (
+          <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
+            {/* Ammeter body - circular */}
+            <circle cx={component.position.x} cy={component.position.y} r="25" fill="white" stroke="black" strokeWidth="2" />
+            
+            {/* Connection lines */}
+            <line x1={component.position.x - 40} y1={component.position.y} x2={component.position.x - 25} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <line x1={component.position.x + 25} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
+            
+            {/* Ammeter symbol - A */}
+            <text x={component.position.x} y={component.position.y + 5} textAnchor="middle" fontSize="16" fontWeight="bold" fill="black">A</text>
+            
+            {/* Current reading display */}
+            <text x={component.position.x} y={component.position.y - 35} textAnchor="middle" fontSize="10" fill="blue">
+              {(component.value * 1000).toFixed(1)}mA
+            </text>
+            
             {/* Label */}
-            <text x={component.position.x} y={component.position.y + 45} textAnchor="middle" fontSize="12">Oscilloscope</text>
+            <text x={component.position.x} y={component.position.y + 45} textAnchor="middle" fontSize="12">Ammeter</text>
+          </g>
+        );
+      case 'voltmeter':
+        return (
+          <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
+            {/* Voltmeter body - circular */}
+            <circle cx={component.position.x} cy={component.position.y} r="25" fill="white" stroke="black" strokeWidth="2" />
+            
+            {/* Connection lines */}
+            <line x1={component.position.x - 40} y1={component.position.y} x2={component.position.x - 25} y2={component.position.y} stroke="black" strokeWidth="2" />
+            <line x1={component.position.x + 25} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
+            
+            {/* Voltmeter symbol - V */}
+            <text x={component.position.x} y={component.position.y + 5} textAnchor="middle" fontSize="16" fontWeight="bold" fill="black">V</text>
+            
+            {/* Voltage reading display */}
+            <text x={component.position.x} y={component.position.y - 35} textAnchor="middle" fontSize="10" fill="red">
+              {component.value.toFixed(2)}V
+            </text>
+            
+            {/* Label */}
+            <text x={component.position.x} y={component.position.y + 45} textAnchor="middle" fontSize="12">Voltmeter</text>
           </g>
         );
       default:
@@ -279,7 +346,9 @@ export default function CircuitComponent({
     return component.terminals.map((terminal, index) => {
       // Special handling for oscilloscope terminals - make them more visible
       if (component.type === 'oscilloscope') {
-        const colors = ['red', 'blue', 'green', 'orange'];
+        // Terminal colors for Electronics Workbench layout:
+        // 0: Ground (black), 1: Channel A (red), 2: Channel B (blue), 3: Input (green)
+        const colors = ['black', 'red', 'blue', 'green'];
         const isWireStart = wireMode && wireStartTerminal?.componentId === component.id && wireStartTerminal?.terminalIndex === index;
         
         return (
@@ -289,7 +358,7 @@ export default function CircuitComponent({
             cy={terminal.y}
             r={8}
             fill={colors[index] || '#999'}
-            stroke={isWireStart ? 'yellow' : 'black'}
+            stroke={isWireStart ? 'yellow' : 'white'}
             strokeWidth={isWireStart ? 3 : 2}
             opacity={wireMode ? 1 : 0.8}
             style={{ cursor: wireMode ? 'crosshair' : 'default' }}
@@ -338,10 +407,10 @@ export default function CircuitComponent({
       {renderTerminals()}
       {selected && (
         <rect 
-          x={component.position.x - 45} 
-          y={component.position.y - 45} 
-          width="90" 
-          height="90" 
+          x={component.type === 'oscilloscope' ? component.position.x - 65 : component.position.x - 45} 
+          y={component.type === 'oscilloscope' ? component.position.y - 45 : component.position.y - 45} 
+          width={component.type === 'oscilloscope' ? 130 : 90} 
+          height={component.type === 'oscilloscope' ? 90 : 90} 
           fill="none" 
           stroke="blue" 
           strokeWidth="2" 

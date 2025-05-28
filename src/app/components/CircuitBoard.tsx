@@ -8,6 +8,7 @@ import PropertiesPanel from './PropertiesPanel';
 import Oscilloscope from './Oscilloscope';
 import { simulateOscilloscopeCircuit, getOscilloscopeProbes } from '../lib/oscilloscopeSimulator';
 import { SimulationResult } from '../lib/circuitSimulator';
+import { analyzeCircuit, solveCircuit, updateComponentMeasurements } from '../lib/circuitAnalysis';
 
 interface CircuitBoardProps {
   initialCircuit?: Circuit;
@@ -139,7 +140,9 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
       'acVoltageSource': 120, // 120V
       'acCurrentSource': 1, // 1A
       'squareWaveSource': 60, // 60Hz
-      'oscilloscope': 0
+      'oscilloscope': 0,
+      'ammeter': 0, // Current reading (calculated)
+      'voltmeter': 0 // Voltage reading (calculated)
     };
     
     const component = createComponent(type, position, defaultValues[type]);
@@ -519,6 +522,46 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
     }
   }, [circuit, showOscilloscope]);
   
+  // Auto-analyze circuit and update meter readings
+  useEffect(() => {
+    // Only analyze if we have components and at least one meter
+    const hasMeters = circuit.components.some(comp => comp.type === 'ammeter' || comp.type === 'voltmeter');
+    
+    if (circuit.components.length > 0 && hasMeters) {
+      try {
+        // Analyze the circuit structure
+        const analyzedCircuit = analyzeCircuit(circuit);
+        
+        // Solve for voltages and currents
+        const analysisResult = solveCircuit(analyzedCircuit);
+        
+        // Update meter readings
+        const updatedCircuit = updateComponentMeasurements(circuit, analysisResult.componentMeasurements);
+        
+        // Only update if measurements actually changed significantly
+        const measurementsChanged = updatedCircuit.components.some((comp, index) => {
+          const originalComp = circuit.components[index];
+          if (!originalComp) return true;
+          
+          // Only consider significant changes (more than 1% difference)
+          const percentChange = Math.abs((comp.value - originalComp.value) / (originalComp.value || 1));
+          return percentChange > 0.01;
+        });
+        
+        if (measurementsChanged) {
+          console.log('Circuit analysis completed, updating meter readings');
+          setCircuit(updatedCircuit);
+        }
+      } catch (error) {
+        console.warn('Circuit analysis failed:', error);
+      }
+    }
+  }, [
+    // Only depend on structural changes, not meter values
+    circuit.components.map(c => `${c.type}-${c.id}-${c.type === 'ammeter' || c.type === 'voltmeter' ? 'meter' : c.value}`).join(','),
+    circuit.wires.map(w => `${w.from}-${w.to}`).join(',')
+  ]);
+  
   // Handle oscilloscope simulation (manual trigger)
   const handleOscilloscopeSimulation = (oscilloscopeId: string) => {
     const result = simulateOscilloscopeCircuit(circuit, oscilloscopeId);
@@ -662,6 +705,24 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
           }}
         >
           Oscilloscope
+        </button>
+        <button 
+          className={`px-3 py-1 rounded ${currentTool === 'ammeter' ? 'bg-blue-500 text-white' : 'bg-white'}`}
+          onClick={() => {
+            setCurrentTool('ammeter');
+            setWireStartTerminal(null);
+          }}
+        >
+          Ammeter
+        </button>
+        <button 
+          className={`px-3 py-1 rounded ${currentTool === 'voltmeter' ? 'bg-blue-500 text-white' : 'bg-white'}`}
+          onClick={() => {
+            setCurrentTool('voltmeter');
+            setWireStartTerminal(null);
+          }}
+        >
+          Voltmeter
         </button>
       </div>
       
@@ -884,11 +945,18 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
                   <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
                     <li>Place an oscilloscope component on the circuit board</li>
                     <li>Add signal sources (AC/DC voltage, current sources, or square wave generators)</li>
-                    <li>Use the Wire tool to connect components to the oscilloscope&apos;s colored probe terminals</li>
+                    <li>Use the Wire tool to connect components to the oscilloscope terminals:
+                      <ul className="list-disc list-inside ml-4 mt-1 text-xs">
+                        <li><strong>Ground (Black)</strong>: Circuit ground reference</li>
+                        <li><strong>Channel A (Red)</strong>: First signal to measure</li>
+                        <li><strong>Channel B (Blue)</strong>: Second signal to measure</li>
+                        <li><strong>Input (Green)</strong>: Signal input source</li>
+                      </ul>
+                    </li>
                     <li>Click &quot;Run Simulation&quot; to see the waveforms</li>
                   </ol>
                   <p className="text-xs text-blue-600 mt-2">
-                    <strong>Tip:</strong> The oscilloscope has 4 probe inputs (red, blue, green, orange) at its corners.
+                    <strong>Tip:</strong> The oscilloscope has a professional layout with the graph on the left and terminals on the right, just like Electronics Workbench.
                   </p>
                 </div>
               )}

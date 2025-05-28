@@ -14,7 +14,9 @@ export type ComponentType =
   | 'acVoltageSource'
   | 'acCurrentSource'
   | 'squareWaveSource'
-  | 'oscilloscope';
+  | 'oscilloscope'
+  | 'ammeter'
+  | 'voltmeter';
 
 export interface Point {
   x: number;
@@ -59,11 +61,19 @@ export function createComponent(type: ComponentType, position: Point, value: num
   if (type === 'ground') {
     terminals.push({ x: position.x, y: position.y - 20 });
   } else if (type === 'oscilloscope') {
-    // Oscilloscope has multiple probe terminals (4 probes)
-    terminals.push({ x: position.x - 30, y: position.y - 30 }); // Probe 1
-    terminals.push({ x: position.x + 30, y: position.y - 30 }); // Probe 2
-    terminals.push({ x: position.x - 30, y: position.y + 30 }); // Probe 3
-    terminals.push({ x: position.x + 30, y: position.y + 30 }); // Probe 4
+    // Oscilloscope terminals positioned like Electronics Workbench:
+    // Terminal 0: Ground (top right)
+    // Terminal 1: Channel A (bottom right, next to graph)
+    // Terminal 2: Channel B (bottom right, below Channel A)
+    // Terminal 3: Input (right side, middle)
+    terminals.push({ x: position.x + 45, y: position.y - 25 }); // Ground (top right)
+    terminals.push({ x: position.x + 45, y: position.y + 5 });  // Channel A (bottom right)
+    terminals.push({ x: position.x + 45, y: position.y + 20 }); // Channel B (bottom right)
+    terminals.push({ x: position.x + 60, y: position.y });      // Input (right side)
+  } else if (type === 'ammeter' || type === 'voltmeter') {
+    // Meters have two terminals for series (ammeter) or parallel (voltmeter) connection
+    terminals.push({ x: position.x - 40, y: position.y });     // Left terminal
+    terminals.push({ x: position.x + 40, y: position.y });     // Right terminal
   } else {
     // Set default terminals (left and right for most components)
     terminals.push({ x: position.x - 40, y: position.y });

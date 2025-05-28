@@ -16,11 +16,20 @@ A comprehensive electronics workbench application similar to Electronics Workben
 ### Digital Oscilloscope
 
 - **Visual Waveform Display**: Real-time oscilloscope with grid, multiple channels, and color-coded traces
+- **Electronics Workbench Layout**: Rectangular design with graph on left, control panel on right
+- **Professional Terminal Layout**: Ground (black), Channel A (red), Channel B (blue), and Input (green) terminals
 - **Modal Interface**: Full-screen oscilloscope display that opens like a separate instrument
-- **Probe Connections**: Connect up to 4 probes (red, blue, green, orange) to oscilloscope terminals
 - **Interactive Controls**: Time scale, voltage scale, and position controls
 - **Auto-Simulation**: Automatic waveform updates when circuit changes
 - **Manual Simulation**: Run simulation button for precise control
+
+### Measurement Instruments
+
+- **Ammeter**: Measures current flow through circuit branches using Ohm's law calculations
+- **Voltmeter**: Measures voltage across circuit components with high input impedance
+- **Real-time Updates**: Meter readings automatically update when circuit changes
+- **Proper Electrical Behavior**: Ammeter acts as low resistance (series), voltmeter as high resistance (parallel)
+- **Current Flow Analysis**: Implements proper current direction from positive to negative terminals
 
 ### Signal Sources
 
@@ -35,14 +44,45 @@ A comprehensive electronics workbench application similar to Electronics Workben
 - **Node Voltage Calculation**: DC operating point analysis
 - **Time-Domain Simulation**: 1000-point simulation over configurable time periods
 - **Component-Specific Signals**: Accurate signal generation for each component type
+- **Ohm's Law Implementation**: Real-time current and voltage calculations using I = V/R
+- **Nodal Analysis**: Proper electrical circuit analysis with node voltage determination
+- **Current Flow Direction**: Accurate current flow from positive to negative terminals
+- **Component Modeling**: Realistic electrical behavior for resistors, capacitors, inductors, and sources
 
 ## How to Use the Oscilloscope
 
 1. **Place Components**: Add an oscilloscope and signal sources to the circuit board
-2. **Connect Wires**: Use the Wire tool to connect components to the oscilloscope's colored probe terminals
+2. **Connect Wires**: Use the Wire tool to connect components to the oscilloscope terminals:
+   - **Ground (Black)**: Connect to circuit ground reference
+   - **Channel A (Red)**: Connect to first signal to measure
+   - **Channel B (Blue)**: Connect to second signal to measure
+   - **Input (Green)**: Connect to signal input source
 3. **Open Oscilloscope**: Click "Show Oscilloscope" to open the digital oscilloscope display
 4. **Run Simulation**: Click "Run Simulation" to see waveforms, or enable auto-simulation for real-time updates
 5. **Adjust Controls**: Use time scale, voltage scale, and position controls to optimize the display
+
+## How to Use Ammeters and Voltmeters
+
+### Ammeter (Current Measurement)
+
+1. **Series Connection**: Place the ammeter in series with the component you want to measure current through
+2. **Wire Connections**: Connect one terminal to the positive side of the circuit, the other to the component
+3. **Reading**: The ammeter displays the current flowing through the circuit branch in milliamps (mA)
+4. **Low Resistance**: Ammeter acts as a very low resistance (1mΩ) to minimize circuit impact
+
+### Voltmeter (Voltage Measurement)
+
+1. **Parallel Connection**: Place the voltmeter in parallel with the component you want to measure voltage across
+2. **Wire Connections**: Connect one terminal to each side of the component or circuit section
+3. **Reading**: The voltmeter displays the voltage difference between its terminals in volts (V)
+4. **High Resistance**: Voltmeter acts as a very high resistance (1MΩ) to avoid loading the circuit
+
+### Circuit Analysis Features
+
+- **Real-time Updates**: Meter readings update automatically when you change component values or connections
+- **Ohm's Law Calculations**: All measurements use proper electrical formulas (V = I × R)
+- **Current Direction**: Current flows from positive voltage sources through the circuit to ground
+- **Proper Electrical Behavior**: Components behave according to their electrical characteristics
 
 ## Getting Started
 
@@ -92,6 +132,8 @@ The application includes a sophisticated circuit simulation engine that:
 ### Measurement Tools
 
 - **Oscilloscope**: 4-channel digital oscilloscope with professional controls
+- **Ammeter**: Current measurement instrument for series connection (displays in mA)
+- **Voltmeter**: Voltage measurement instrument for parallel connection (displays in V)
 - **Ground**: Circuit reference point
 
 ## Future Enhancements
