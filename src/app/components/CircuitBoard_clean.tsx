@@ -78,7 +78,9 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
       'acVoltageSource': 120, // 120V
       'acCurrentSource': 1, // 1A
       'squareWaveSource': 60, // 60Hz
-      'oscilloscope': 0
+      'oscilloscope': 0,
+      'ammeter': 0, // Current reading
+      'voltmeter': 0 // Voltage reading
     };
     
     const component = createComponent(type, position, defaultValues[type]);
