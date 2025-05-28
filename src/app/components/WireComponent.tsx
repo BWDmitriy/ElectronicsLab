@@ -9,37 +9,56 @@ interface WireComponentProps {
 }
 
 export default function WireComponent({ wire, selected, onClick }: WireComponentProps) {
-  // Generate path for the wire
-  const generatePath = () => {
-    if (wire.points.length === 0) {
-      return '';
-    }
-
-    let path = `M ${wire.points[0].x} ${wire.points[0].y}`;
-    
-    for (let i = 1; i < wire.points.length; i++) {
-      path += ` L ${wire.points[i].x} ${wire.points[i].y}`;
-    }
-    
-    return path;
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onClick(wire.id);
   };
 
+  // Create path from wire points
+  const pathData = wire.points.reduce((path, point, index) => {
+    if (index === 0) {
+      return `M ${point.x} ${point.y}`;
+    } else {
+      return `${path} L ${point.x} ${point.y}`;
+    }
+  }, '');
+
   return (
-    <g 
-      className={`wire ${selected ? 'selected' : ''}`} 
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick(wire.id);
-      }}
-    >
-      <path 
-        d={generatePath()} 
-        stroke={selected ? 'blue' : 'black'} 
-        strokeWidth="2" 
-        fill="none" 
+    <g onClick={handleClick} style={{ cursor: 'pointer' }}>
+      {/* Main wire line */}
+      <path
+        d={pathData}
+        stroke={selected ? '#ff0000' : '#000000'}
+        strokeWidth={selected ? '3' : '2'}
+        fill="none"
         strokeLinecap="round"
-        style={{ cursor: 'pointer' }}
+        strokeLinejoin="round"
       />
+      
+      {/* Connection points */}
+      {wire.points.map((point, index) => (
+        <circle
+          key={`point-${index}`}
+          cx={point.x}
+          cy={point.y}
+          r="3"
+          fill={selected ? '#ff0000' : '#666666'}
+          stroke="#000000"
+          strokeWidth="1"
+        />
+      ))}
+      
+      {/* Selection indicator */}
+      {selected && (
+        <path
+          d={pathData}
+          stroke="#ff0000"
+          strokeWidth="6"
+          fill="none"
+          strokeDasharray="5,5"
+          opacity="0.5"
+        />
+      )}
     </g>
   );
 } 

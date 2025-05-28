@@ -5,7 +5,9 @@ import { Circuit, Point, createComponent, ComponentType } from '../lib/circuitEn
 import CircuitComponent from './CircuitComponent';
 import WireComponent from './WireComponent';
 import PropertiesPanel from './PropertiesPanel';
+import Oscilloscope from './Oscilloscope';
 import { simulateOscilloscopeCircuit, getOscilloscopeProbes } from '../lib/oscilloscopeSimulator';
+import { SimulationResult } from '../lib/circuitSimulator';
 
 interface CircuitBoardProps {
   initialCircuit?: Circuit;
@@ -18,6 +20,10 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
   const [selectedWireId, setSelectedWireId] = useState<string | null>(null);
   const [currentTool, setCurrentTool] = useState<ComponentType | 'select' | 'wire'>('select');
   const [wireStartTerminal, setWireStartTerminal] = useState<{componentId: string, terminalIndex: number} | null>(null);
+  const [oscilloscopeResult, setOscilloscopeResult] = useState<SimulationResult | null>(null);
+  const [oscilloscopeProbes, setOscilloscopeProbes] = useState<Array<{id: string, label: string, terminalIndex: number}>>([]);
+  const [showOscilloscope, setShowOscilloscope] = useState(false);
+  const [wireUpdateStatus, setWireUpdateStatus] = useState<string | null>(null);
   const boardRef = useRef<SVGSVGElement>(null);
   const gridSize = 20;
   
@@ -153,12 +159,16 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
     const newX = Math.round(x / gridSize) * gridSize;
     const newY = Math.round(y / gridSize) * gridSize;
     
+    console.log(`Moving component ${id} to (${newX}, ${newY})`);
+    
     setCircuit(prev => {
       const updatedComponents = prev.components.map(comp => {
         if (comp.id === id) {
           // Calculate how much the component moved
           const deltaX = newX - comp.position.x;
           const deltaY = newY - comp.position.y;
+          
+          console.log(`Component ${id} moved by delta (${deltaX}, ${deltaY})`);
           
           // Update terminals based on the movement
           const updatedTerminals = comp.terminals.map(terminal => ({
@@ -175,11 +185,55 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
         return comp;
       });
       
-      // Also update any wires connected to this component
+      // Update wires connected to the moved component
       const updatedWires = prev.wires.map(wire => {
-        const points = [...wire.points];
-        return { ...wire, points };
+        let needsUpdate = false;
+        const updatedPoints = [...wire.points];
+        
+        // Check if this wire is connected to the moved component
+        const fromConnection = wire.from.split(':');
+        const toConnection = wire.to.split(':');
+        const fromComponentId = fromConnection[0];
+        const toComponentId = toConnection[0];
+        
+        if (fromComponentId === id) {
+          // Update the 'from' endpoint
+          const terminalIndex = parseInt(fromConnection[1]);
+          const movedComponent = updatedComponents.find(comp => comp.id === id);
+          if (movedComponent && movedComponent.terminals[terminalIndex]) {
+            console.log(`Updating wire ${wire.id} 'from' endpoint for component ${id}`);
+            updatedPoints[0] = {
+              x: movedComponent.terminals[terminalIndex].x,
+              y: movedComponent.terminals[terminalIndex].y
+            };
+            needsUpdate = true;
+          }
+        }
+        
+        if (toComponentId === id) {
+          // Update the 'to' endpoint
+          const terminalIndex = parseInt(toConnection[1]);
+          const movedComponent = updatedComponents.find(comp => comp.id === id);
+          if (movedComponent && movedComponent.terminals[terminalIndex]) {
+            console.log(`Updating wire ${wire.id} 'to' endpoint for component ${id}`);
+            updatedPoints[updatedPoints.length - 1] = {
+              x: movedComponent.terminals[terminalIndex].x,
+              y: movedComponent.terminals[terminalIndex].y
+            };
+            needsUpdate = true;
+          }
+        }
+        
+        return needsUpdate ? { ...wire, points: updatedPoints } : wire;
       });
+      
+      console.log(`Updated ${updatedWires.filter((wire, index) => wire !== prev.wires[index]).length} wires`);
+      
+      const updatedWireCount = updatedWires.filter((wire, index) => wire !== prev.wires[index]).length;
+      if (updatedWireCount > 0) {
+        setWireUpdateStatus(`Updated ${updatedWireCount} wire${updatedWireCount > 1 ? 's' : ''}`);
+        setTimeout(() => setWireUpdateStatus(null), 2000); // Clear status after 2 seconds
+      }
       
       return {
         components: updatedComponents,
@@ -273,9 +327,50 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
             return comp;
           });
           
+          // Update wires connected to the rotated component
+          const updatedWires = prev.wires.map(wire => {
+            let needsUpdate = false;
+            const updatedPoints = [...wire.points];
+            
+            // Check if this wire is connected to the rotated component
+            const fromConnection = wire.from.split(':');
+            const toConnection = wire.to.split(':');
+            const fromComponentId = fromConnection[0];
+            const toComponentId = toConnection[0];
+            
+            if (fromComponentId === selectedComponentId) {
+              // Update the 'from' endpoint
+              const terminalIndex = parseInt(fromConnection[1]);
+              const rotatedComponent = updatedComponents.find(comp => comp.id === selectedComponentId);
+              if (rotatedComponent && rotatedComponent.terminals[terminalIndex]) {
+                updatedPoints[0] = {
+                  x: rotatedComponent.terminals[terminalIndex].x,
+                  y: rotatedComponent.terminals[terminalIndex].y
+                };
+                needsUpdate = true;
+              }
+            }
+            
+            if (toComponentId === selectedComponentId) {
+              // Update the 'to' endpoint
+              const terminalIndex = parseInt(toConnection[1]);
+              const rotatedComponent = updatedComponents.find(comp => comp.id === selectedComponentId);
+              if (rotatedComponent && rotatedComponent.terminals[terminalIndex]) {
+                updatedPoints[updatedPoints.length - 1] = {
+                  x: rotatedComponent.terminals[terminalIndex].x,
+                  y: rotatedComponent.terminals[terminalIndex].y
+                };
+                needsUpdate = true;
+              }
+            }
+            
+            return needsUpdate ? { ...wire, points: updatedPoints } : wire;
+          });
+          
           return {
             ...prev,
-            components: updatedComponents
+            components: updatedComponents,
+            wires: updatedWires
           };
         });
       }
@@ -404,8 +499,27 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
       };
     });
   };
-
-  // Handle oscilloscope simulation
+  
+  // Auto-run oscilloscope simulation when circuit changes
+  useEffect(() => {
+    // Find all oscilloscopes in the circuit
+    const oscilloscopes = circuit.components.filter(comp => comp.type === 'oscilloscope');
+    
+    if (oscilloscopes.length > 0 && showOscilloscope) {
+      // Use the first oscilloscope for auto-simulation
+      const oscilloscope = oscilloscopes[0];
+      const result = simulateOscilloscopeCircuit(circuit, oscilloscope.id);
+      const probes = getOscilloscopeProbes(circuit, oscilloscope.id);
+      
+      if (result && probes.length > 0) {
+        setOscilloscopeResult(result);
+        setOscilloscopeProbes(probes);
+        console.log('Auto-simulation completed for oscilloscope:', oscilloscope.id);
+      }
+    }
+  }, [circuit, showOscilloscope]);
+  
+  // Handle oscilloscope simulation (manual trigger)
   const handleOscilloscopeSimulation = (oscilloscopeId: string) => {
     const result = simulateOscilloscopeCircuit(circuit, oscilloscopeId);
     const probes = getOscilloscopeProbes(circuit, oscilloscopeId);
@@ -420,18 +534,13 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
       return;
     }
     
-    // For now, just show an alert with the simulation results
-    const connectedComponentsCount = result.analysisResults.connectedComponents.size;
-    const probeInfo = probes.map(probe => probe.label).join('\n');
+    // Set the simulation results and show the oscilloscope
+    setOscilloscopeResult(result);
+    setOscilloscopeProbes(probes);
+    setShowOscilloscope(true);
     
-    alert(`Oscilloscope Simulation Results:
-    
-Connected Components: ${connectedComponentsCount}
-    
-Probe Connections:
-${probeInfo}
-    
-Simulation completed with ${result.time.length} data points over ${result.time[result.time.length - 1].toFixed(3)}s`);
+    console.log('Manual oscilloscope simulation completed:', result);
+    console.log('Probe connections:', probes);
   };
   
   return (
@@ -566,6 +675,13 @@ Simulation completed with ${result.time.length} data points over ${result.time[r
         </div>
       )}
       
+      {/* Wire update status */}
+      {wireUpdateStatus && (
+        <div className="p-2 bg-green-100 border border-green-300 rounded text-sm text-green-700">
+          ✓ {wireUpdateStatus}
+        </div>
+      )}
+      
       <div className="relative">
         <div className="w-full border border-gray-300 rounded overflow-hidden">
           <svg 
@@ -647,9 +763,50 @@ Simulation completed with ${result.time.length} data points over ${result.time[r
                       return comp;
                     });
                     
+                    // Update wires connected to the rotated component
+                    const updatedWires = prev.wires.map(wire => {
+                      let needsUpdate = false;
+                      const updatedPoints = [...wire.points];
+                      
+                      // Check if this wire is connected to the rotated component
+                      const fromConnection = wire.from.split(':');
+                      const toConnection = wire.to.split(':');
+                      const fromComponentId = fromConnection[0];
+                      const toComponentId = toConnection[0];
+                      
+                      if (fromComponentId === selectedComponent.id) {
+                        // Update the 'from' endpoint
+                        const terminalIndex = parseInt(fromConnection[1]);
+                        const rotatedComponent = updatedComponents.find(comp => comp.id === selectedComponent.id);
+                        if (rotatedComponent && rotatedComponent.terminals[terminalIndex]) {
+                          updatedPoints[0] = {
+                            x: rotatedComponent.terminals[terminalIndex].x,
+                            y: rotatedComponent.terminals[terminalIndex].y
+                          };
+                          needsUpdate = true;
+                        }
+                      }
+                      
+                      if (toComponentId === selectedComponent.id) {
+                        // Update the 'to' endpoint
+                        const terminalIndex = parseInt(toConnection[1]);
+                        const rotatedComponent = updatedComponents.find(comp => comp.id === selectedComponent.id);
+                        if (rotatedComponent && rotatedComponent.terminals[terminalIndex]) {
+                          updatedPoints[updatedPoints.length - 1] = {
+                            x: rotatedComponent.terminals[terminalIndex].x,
+                            y: rotatedComponent.terminals[terminalIndex].y
+                          };
+                          needsUpdate = true;
+                        }
+                      }
+                      
+                      return needsUpdate ? { ...wire, points: updatedPoints } : wire;
+                    });
+                    
                     return {
                       ...prev,
-                      components: updatedComponents
+                      components: updatedComponents,
+                      wires: updatedWires
                     };
                   });
                 }}
@@ -684,7 +841,69 @@ Simulation completed with ${result.time.length} data points over ${result.time[r
         >
           Clear Board
         </button>
+        
+        <button 
+          className="px-3 py-1 bg-green-500 text-white rounded"
+          onClick={() => setShowOscilloscope(true)}
+        >
+          Show Oscilloscope
+        </button>
       </div>
+      
+      {/* Oscilloscope Display */}
+      {showOscilloscope && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-2xl max-w-6xl max-h-[90vh] overflow-auto m-4">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-xl font-bold text-gray-800">Digital Oscilloscope</h3>
+              <div className="flex gap-2">
+                <button 
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  onClick={() => {
+                    // Find the first oscilloscope and run simulation
+                    const oscilloscope = circuit.components.find(comp => comp.type === 'oscilloscope');
+                    if (oscilloscope) {
+                      handleOscilloscopeSimulation(oscilloscope.id);
+                    }
+                  }}
+                >
+                  Run Simulation
+                </button>
+                <button 
+                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                  onClick={() => setShowOscilloscope(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              {!oscilloscopeResult && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-bold text-blue-800 mb-2">How to use the Oscilloscope:</h4>
+                  <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
+                    <li>Place an oscilloscope component on the circuit board</li>
+                    <li>Add signal sources (AC/DC voltage, current sources, or square wave generators)</li>
+                    <li>Use the Wire tool to connect components to the oscilloscope&apos;s colored probe terminals</li>
+                    <li>Click &quot;Run Simulation&quot; to see the waveforms</li>
+                  </ol>
+                  <p className="text-xs text-blue-600 mt-2">
+                    <strong>Tip:</strong> The oscilloscope has 4 probe inputs (red, blue, green, orange) at its corners.
+                  </p>
+                </div>
+              )}
+              
+              <Oscilloscope
+                simulationResult={oscilloscopeResult}
+                nodeIds={oscilloscopeProbes.map(probe => probe.id)}
+                availableProbes={oscilloscopeProbes.map(probe => ({ id: probe.id, label: probe.label }))}
+                width={900}
+                height={500}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
