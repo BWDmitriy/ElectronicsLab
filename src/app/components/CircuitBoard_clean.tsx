@@ -5,7 +5,6 @@ import { Circuit, Point, createComponent, ComponentType } from '../lib/circuitEn
 import CircuitComponent from './CircuitComponent';
 import WireComponent from './WireComponent';
 import PropertiesPanel from './PropertiesPanel';
-import { simulateOscilloscopeCircuit, getOscilloscopeProbes } from '../lib/oscilloscopeSimulator';
 
 interface CircuitBoardProps {
   initialCircuit?: Circuit;
@@ -16,8 +15,7 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
   const [circuit, setCircuit] = useState<Circuit>(initialCircuit || { components: [], wires: [] });
   const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   const [selectedWireId, setSelectedWireId] = useState<string | null>(null);
-  const [currentTool, setCurrentTool] = useState<ComponentType | 'select' | 'wire'>('select');
-  const [wireStartTerminal, setWireStartTerminal] = useState<{componentId: string, terminalIndex: number} | null>(null);
+  const [currentTool, setCurrentTool] = useState<ComponentType | 'select'>('select');
   const boardRef = useRef<SVGSVGElement>(null);
   const gridSize = 20;
   
@@ -40,59 +38,6 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
       } else {
         setSelectedComponentId(id);
         setSelectedWireId(null);
-      }
-    }
-  };
-  
-  // Handle terminal clicks for wire creation
-  const handleTerminalClick = (componentId: string, terminalIndex: number) => {
-    console.log(`Terminal clicked: ${componentId}:${terminalIndex}, current tool: ${currentTool}`);
-    
-    if (currentTool === 'wire') {
-      if (!wireStartTerminal) {
-        // Start a new wire
-        console.log(`Starting wire from ${componentId}:${terminalIndex}`);
-        setWireStartTerminal({ componentId, terminalIndex });
-      } else {
-        // Complete the wire
-        if (wireStartTerminal.componentId !== componentId) {
-          // Find the terminal positions
-          const startComponent = circuit.components.find(c => c.id === wireStartTerminal.componentId);
-          const endComponent = circuit.components.find(c => c.id === componentId);
-          
-          if (startComponent && endComponent) {
-            const startTerminal = startComponent.terminals[wireStartTerminal.terminalIndex];
-            const endTerminal = endComponent.terminals[terminalIndex];
-            
-            console.log(`Creating wire from ${wireStartTerminal.componentId}:${wireStartTerminal.terminalIndex} to ${componentId}:${terminalIndex}`);
-            console.log(`Start terminal position:`, startTerminal);
-            console.log(`End terminal position:`, endTerminal);
-            
-            // Create wire between the two terminals with proper points
-            const newWire = {
-              id: Math.random().toString(36).substring(2, 9),
-              from: `${wireStartTerminal.componentId}:${wireStartTerminal.terminalIndex}`,
-              to: `${componentId}:${terminalIndex}`,
-              points: [
-                { x: startTerminal.x, y: startTerminal.y },
-                { x: endTerminal.x, y: endTerminal.y }
-              ]
-            };
-            
-            console.log(`Created wire:`, newWire);
-            
-            setCircuit(prev => ({
-              ...prev,
-              wires: [...prev.wires, newWire]
-            }));
-          }
-        } else {
-          console.log(`Cannot connect terminal to itself`);
-        }
-        
-        // Reset wire creation
-        console.log(`Resetting wire creation`);
-        setWireStartTerminal(null);
       }
     }
   };
@@ -207,7 +152,6 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
       // Add a new component based on the current tool
       addComponent(currentTool as ComponentType, { x, y });
       setCurrentTool('select'); // Switch back to select tool after placing component
-      setWireStartTerminal(null); // Reset wire creation state
     } else {
       // Deselect current selections when clicking on empty board areas
       setSelectedComponentId(null);
@@ -404,167 +348,83 @@ export default function CircuitBoard({ initialCircuit, onCircuitChange }: Circui
       };
     });
   };
-
-  // Handle oscilloscope simulation
-  const handleOscilloscopeSimulation = (oscilloscopeId: string) => {
-    const result = simulateOscilloscopeCircuit(circuit, oscilloscopeId);
-    const probes = getOscilloscopeProbes(circuit, oscilloscopeId);
-    
-    if (!result) {
-      alert('No components connected to this oscilloscope. Connect some components first.');
-      return;
-    }
-    
-    if (probes.length === 0) {
-      alert('No probe connections found. Connect wires to the oscilloscope terminals.');
-      return;
-    }
-    
-    // For now, just show an alert with the simulation results
-    const connectedComponentsCount = result.analysisResults.connectedComponents.size;
-    const probeInfo = probes.map(probe => probe.label).join('\n');
-    
-    alert(`Oscilloscope Simulation Results:
-    
-Connected Components: ${connectedComponentsCount}
-    
-Probe Connections:
-${probeInfo}
-    
-Simulation completed with ${result.time.length} data points over ${result.time[result.time.length - 1].toFixed(3)}s`);
-  };
   
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2 p-2 bg-gray-100 rounded">
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'select' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('select');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('select')}
         >
           Select
         </button>
         <button 
-          className={`px-3 py-1 rounded ${currentTool === 'wire' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('wire');
-            setWireStartTerminal(null); // Reset any ongoing wire creation
-          }}
-        >
-          Wire
-        </button>
-        <button 
           className={`px-3 py-1 rounded ${currentTool === 'resistor' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('resistor');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('resistor')}
         >
           Resistor
         </button>
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'capacitor' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('capacitor');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('capacitor')}
         >
           Capacitor
         </button>
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'inductor' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('inductor');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('inductor')}
         >
           Inductor
         </button>
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'diode' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('diode');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('diode')}
         >
           Diode
         </button>
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'ground' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('ground');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('ground')}
         >
           Ground
         </button>
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'battery' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('battery');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('battery')}
         >
           Battery
         </button>
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'dcCurrentSource' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('dcCurrentSource');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('dcCurrentSource')}
         >
           DC Source
         </button>
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'acVoltageSource' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('acVoltageSource');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('acVoltageSource')}
         >
           AC Voltage
         </button>
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'acCurrentSource' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('acCurrentSource');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('acCurrentSource')}
         >
           AC Current
         </button>
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'squareWaveSource' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('squareWaveSource');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('squareWaveSource')}
         >
           Clock
         </button>
         <button 
           className={`px-3 py-1 rounded ${currentTool === 'oscilloscope' ? 'bg-blue-500 text-white' : 'bg-white'}`}
-          onClick={() => {
-            setCurrentTool('oscilloscope');
-            setWireStartTerminal(null);
-          }}
+          onClick={() => setCurrentTool('oscilloscope')}
         >
           Oscilloscope
         </button>
       </div>
-      
-      {/* Wire creation status */}
-      {currentTool === 'wire' && (
-        <div className="p-2 bg-yellow-100 rounded text-sm">
-          {wireStartTerminal 
-            ? 'Click on another terminal to complete the wire connection'
-            : 'Click on a terminal to start creating a wire'
-          }
-        </div>
-      )}
       
       <div className="relative">
         <div className="w-full border border-gray-300 rounded overflow-hidden">
@@ -597,10 +457,7 @@ Simulation completed with ${result.time.length} data points over ${result.time[r
                 selected={component.id === selectedComponentId} 
                 onClick={handleComponentClick} 
                 onMove={moveComponent}
-                onTerminalClick={handleTerminalClick}
                 isConnected={false}
-                wireMode={currentTool === 'wire'}
-                wireStartTerminal={wireStartTerminal}
               />
             ))}
           </svg>
@@ -662,7 +519,10 @@ Simulation completed with ${result.time.length} data points over ${result.time[r
             {selectedComponent.type === 'oscilloscope' && (
               <button 
                 className="mt-2 px-3 py-1 bg-green-500 text-white rounded w-full"
-                onClick={() => handleOscilloscopeSimulation(selectedComponent.id)}
+                onClick={() => {
+                  // TODO: Implement oscilloscope-specific simulation
+                  alert('Oscilloscope simulation will be implemented here');
+                }}
               >
                 Run Simulation
               </button>

@@ -13,7 +13,8 @@ export type ComponentType =
   | 'dcCurrentSource'
   | 'acVoltageSource'
   | 'acCurrentSource'
-  | 'squareWaveSource';
+  | 'squareWaveSource'
+  | 'oscilloscope';
 
 export interface Point {
   x: number;
@@ -57,6 +58,12 @@ export function createComponent(type: ComponentType, position: Point, value: num
   // Special case for ground - only one terminal at the top
   if (type === 'ground') {
     terminals.push({ x: position.x, y: position.y - 20 });
+  } else if (type === 'oscilloscope') {
+    // Oscilloscope has multiple probe terminals (4 probes)
+    terminals.push({ x: position.x - 30, y: position.y - 30 }); // Probe 1
+    terminals.push({ x: position.x + 30, y: position.y - 30 }); // Probe 2
+    terminals.push({ x: position.x - 30, y: position.y + 30 }); // Probe 3
+    terminals.push({ x: position.x + 30, y: position.y + 30 }); // Probe 4
   } else {
     // Set default terminals (left and right for most components)
     terminals.push({ x: position.x - 40, y: position.y });

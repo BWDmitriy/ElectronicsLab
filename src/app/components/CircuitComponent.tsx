@@ -8,7 +8,10 @@ interface CircuitComponentProps {
   selected: boolean;
   onClick: (id: string) => void;
   onMove: (id: string, x: number, y: number) => void;
+  onTerminalClick?: (componentId: string, terminalIndex: number) => void;
   isConnected?: boolean;
+  wireMode?: boolean;
+  wireStartTerminal?: {componentId: string, terminalIndex: number} | null;
 }
 
 export default function CircuitComponent({ 
@@ -16,7 +19,10 @@ export default function CircuitComponent({
   selected, 
   onClick, 
   onMove,
-  isConnected = false
+  onTerminalClick,
+  isConnected = false,
+  wireMode = false,
+  wireStartTerminal = null
 }: CircuitComponentProps) {
   const [dragging, setDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -185,6 +191,34 @@ export default function CircuitComponent({
             <line x1={component.position.x + 15} y1={component.position.y} x2={component.position.x + 40} y2={component.position.y} stroke="black" strokeWidth="2" />
           </g>
         );
+      case 'oscilloscope':
+        return (
+          <g>
+            {/* Main oscilloscope body */}
+            <rect x={component.position.x - 40} y={component.position.y - 30} width="80" height="60" fill="lightgray" stroke="black" strokeWidth="2" />
+            {/* Screen */}
+            <rect x={component.position.x - 30} y={component.position.y - 20} width="60" height="40" fill="darkgreen" stroke="black" strokeWidth="1" />
+            {/* Grid lines on screen */}
+            <line x1={component.position.x - 20} y1={component.position.y - 20} x2={component.position.x - 20} y2={component.position.y + 20} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 10} y1={component.position.y - 20} x2={component.position.x - 10} y2={component.position.y + 20} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x} y1={component.position.y - 20} x2={component.position.x} y2={component.position.y + 20} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x + 10} y1={component.position.y - 20} x2={component.position.x + 10} y2={component.position.y + 20} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x + 20} y1={component.position.y - 20} x2={component.position.x + 20} y2={component.position.y + 20} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 30} y1={component.position.y - 10} x2={component.position.x + 30} y2={component.position.y - 10} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 30} y1={component.position.y} x2={component.position.x + 30} y2={component.position.y} stroke="green" strokeWidth="0.5" />
+            <line x1={component.position.x - 30} y1={component.position.y + 10} x2={component.position.x + 30} y2={component.position.y + 10} stroke="green" strokeWidth="0.5" />
+            {/* Sample waveform */}
+            <path d={`M${component.position.x - 25},${component.position.y} 
+                      Q${component.position.x - 20},${component.position.y - 8} ${component.position.x - 15},${component.position.y}
+                      Q${component.position.x - 10},${component.position.y + 8} ${component.position.x - 5},${component.position.y}
+                      Q${component.position.x},${component.position.y - 8} ${component.position.x + 5},${component.position.y}
+                      Q${component.position.x + 10},${component.position.y + 8} ${component.position.x + 15},${component.position.y}
+                      Q${component.position.x + 20},${component.position.y - 8} ${component.position.x + 25},${component.position.y}`} 
+                  fill="none" stroke="yellow" strokeWidth="1" />
+            {/* Label */}
+            <text x={component.position.x} y={component.position.y + 45} textAnchor="middle" fontSize="12">Oscilloscope</text>
+          </g>
+        );
       default:
         return (
           <g transform={`rotate(${component.rotation}, ${component.position.x}, ${component.position.y})`}>
@@ -242,17 +276,55 @@ export default function CircuitComponent({
 
   // Draw terminal connection points
   const renderTerminals = () => {
-    return component.terminals.map((terminal, index) => (
-      <circle
-        key={`terminal-${index}`}
-        cx={terminal.x}
-        cy={terminal.y}
-        r={5}
-        fill={isConnected ? "#4CAF50" : "#999"}
-        stroke="black"
-        strokeWidth={1}
-      />
-    ));
+    return component.terminals.map((terminal, index) => {
+      // Special handling for oscilloscope terminals - make them more visible
+      if (component.type === 'oscilloscope') {
+        const colors = ['red', 'blue', 'green', 'orange'];
+        const isWireStart = wireMode && wireStartTerminal?.componentId === component.id && wireStartTerminal?.terminalIndex === index;
+        
+        return (
+          <circle
+            key={`terminal-${index}`}
+            cx={terminal.x}
+            cy={terminal.y}
+            r={8}
+            fill={colors[index] || '#999'}
+            stroke={isWireStart ? 'yellow' : 'black'}
+            strokeWidth={isWireStart ? 3 : 2}
+            opacity={wireMode ? 1 : 0.8}
+            style={{ cursor: wireMode ? 'crosshair' : 'default' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onTerminalClick) {
+                onTerminalClick(component.id, index);
+              }
+            }}
+          />
+        );
+      }
+      
+      // Default terminal rendering for other components
+      const isWireStart = wireMode && wireStartTerminal?.componentId === component.id && wireStartTerminal?.terminalIndex === index;
+      
+      return (
+        <circle
+          key={`terminal-${index}`}
+          cx={terminal.x}
+          cy={terminal.y}
+          r={wireMode ? 7 : 5}
+          fill={isWireStart ? 'yellow' : (isConnected ? "#4CAF50" : "#999")}
+          stroke={isWireStart ? 'orange' : 'black'}
+          strokeWidth={isWireStart ? 2 : 1}
+          style={{ cursor: wireMode ? 'crosshair' : 'default' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onTerminalClick) {
+              onTerminalClick(component.id, index);
+            }
+          }}
+        />
+      );
+    });
   };
 
   return (
