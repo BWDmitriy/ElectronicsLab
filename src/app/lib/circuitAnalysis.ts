@@ -174,7 +174,7 @@ export function solveCircuit(analyzedCircuit: AnalyzedCircuit): CircuitAnalysisR
     nodeVoltages.set(groundNodeId, 0);
   }
   
-  // Find all voltage sources and set their node voltages
+  // Find all voltage sources
   const voltageSources = branches.filter(branch => 
     branch.component.type === 'voltageSource' || 
     branch.component.type === 'battery' || 
@@ -192,36 +192,33 @@ export function solveCircuit(analyzedCircuit: AnalyzedCircuit): CircuitAnalysisR
       nodeVoltages.set(fromNodeId, sourceVoltage);
     } else {
       // If neither terminal is ground, assume positive terminal is at source voltage
-      // and negative terminal is at 0V (this is a simplification)
       nodeVoltages.set(fromNodeId, sourceVoltage);
       nodeVoltages.set(toNodeId, 0);
     }
   });
   
-  // Iterative solution for node voltages (simplified nodal analysis)
-  // In a full implementation, we'd use matrix methods, but this handles most cases
-  const maxIterations = 10;
+  // Simple iterative solution for node voltages
+  const maxIterations = 20;
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     let voltagesChanged = false;
     
-    // For each non-ground, non-source node, calculate voltage based on connected branches
     nodes.forEach(node => {
       if (node.id === groundNodeId) return;
       
-      // Skip nodes that are directly connected to voltage sources
+      // Skip voltage source nodes
       const isVoltageSourceNode = voltageSources.some(branch => 
         branch.fromNodeId === node.id || branch.toNodeId === node.id
       );
       if (isVoltageSourceNode) return;
       
-      // Find all branches connected to this node
+      // Find connected branches
       const connectedBranches = branches.filter(branch => 
         branch.fromNodeId === node.id || branch.toNodeId === node.id
       );
       
       if (connectedBranches.length === 0) return;
       
-      // Calculate weighted average voltage based on conductances
+      // Calculate voltage based on connected components
       let totalConductance = 0;
       let weightedVoltageSum = 0;
       
@@ -230,23 +227,20 @@ export function solveCircuit(analyzedCircuit: AnalyzedCircuit): CircuitAnalysisR
         const otherNodeId = fromNodeId === node.id ? toNodeId : fromNodeId;
         const otherVoltage = nodeVoltages.get(otherNodeId) || 0;
         
-        // Get conductance (1/resistance) for this component
         let conductance = 0;
         switch (component.type) {
           case 'resistor':
             conductance = component.value > 0 ? 1 / component.value : 0;
             break;
           case 'ammeter':
-            conductance = 1 / 0.001; // 1mΩ internal resistance
+            conductance = 1 / 0.001;
             break;
           case 'inductor':
-            conductance = 1 / 0.001; // Very small resistance for DC
+            conductance = 1 / 0.001;
             break;
           case 'voltmeter':
-            conductance = 1 / 1000000; // 1MΩ internal resistance
+            conductance = 1 / 1000000;
             break;
-          default:
-            conductance = 0;
         }
         
         if (conductance > 0) {
@@ -266,11 +260,10 @@ export function solveCircuit(analyzedCircuit: AnalyzedCircuit): CircuitAnalysisR
       }
     });
     
-    // If voltages have converged, stop iterating
     if (!voltagesChanged) break;
   }
   
-  // Calculate currents for each branch using Ohm's law
+  // Calculate currents for each branch
   branches.forEach(branch => {
     const { component, fromNodeId, toNodeId } = branch;
     const fromVoltage = nodeVoltages.get(fromNodeId) || 0;
@@ -282,19 +275,23 @@ export function solveCircuit(analyzedCircuit: AnalyzedCircuit): CircuitAnalysisR
     
     switch (component.type) {
       case 'resistor':
-        // Ohm's law: I = V / R
-        current = component.value > 0 ? voltageDrop / component.value : 0;
-        voltage = Math.abs(voltageDrop);
-        break;
-        
       case 'ammeter':
-        // Ammeter measures current through it
-        current = voltageDrop / 0.001; // 1mΩ internal resistance
+      case 'inductor':
+        // Use Ohm's law: I = V / R
+        let resistance = 0;
+        if (component.type === 'resistor') {
+          resistance = component.value;
+        } else if (component.type === 'ammeter') {
+          resistance = 0.001; // 1mΩ
+        } else if (component.type === 'inductor') {
+          resistance = 0.001; // Very small for DC
+        }
+        
+        current = resistance > 0 ? voltageDrop / resistance : 0;
         voltage = Math.abs(voltageDrop);
         break;
         
       case 'voltmeter':
-        // Voltmeter measures voltage across it
         current = voltageDrop / 1000000; // 1MΩ internal resistance
         voltage = Math.abs(voltageDrop);
         break;
@@ -302,33 +299,37 @@ export function solveCircuit(analyzedCircuit: AnalyzedCircuit): CircuitAnalysisR
       case 'voltageSource':
       case 'battery':
       case 'acVoltageSource':
-        // For voltage sources, calculate current based on connected load
         voltage = component.value;
         
-        // Find total conductance of connected branches (excluding this source)
-        let totalLoadConductance = 0;
-        const connectedBranches = branches.filter(b => 
-          b.id !== branch.id && 
-          (b.fromNodeId === fromNodeId || b.toNodeId === fromNodeId ||
-           b.fromNodeId === toNodeId || b.toNodeId === toNodeId)
-        );
+        // Calculate total circuit current by finding equivalent resistance
+        // For simple circuits, sum all resistances in the current path
+        let totalResistance = 0;
         
-        connectedBranches.forEach(connectedBranch => {
-          const comp = connectedBranch.component;
-          switch (comp.type) {
-            case 'resistor':
-              totalLoadConductance += comp.value > 0 ? 1 / comp.value : 0;
-              break;
-            case 'ammeter':
-              totalLoadConductance += 1 / 0.001;
-              break;
-            case 'inductor':
-              totalLoadConductance += 1 / 0.001;
-              break;
+        // Find all resistive components in the circuit (excluding this voltage source)
+        branches.forEach(otherBranch => {
+          if (otherBranch.id !== branch.id) {
+            const comp = otherBranch.component;
+            switch (comp.type) {
+              case 'resistor':
+                totalResistance += comp.value;
+                break;
+              case 'ammeter':
+                totalResistance += 0.001;
+                break;
+              case 'inductor':
+                totalResistance += 0.001;
+                break;
+            }
           }
         });
         
-        current = component.value * totalLoadConductance;
+        // For parallel circuits, we need to calculate equivalent resistance
+        // This is a simplified approach - for complex circuits, we'd need matrix methods
+        if (totalResistance > 0) {
+          current = component.value / totalResistance;
+        } else {
+          current = 0;
+        }
         break;
         
       case 'currentSource':
@@ -338,25 +339,17 @@ export function solveCircuit(analyzedCircuit: AnalyzedCircuit): CircuitAnalysisR
         voltage = Math.abs(voltageDrop);
         break;
         
-      case 'inductor':
-        // For DC analysis, inductor acts like small resistor
-        current = voltageDrop / 0.001;
-        voltage = Math.abs(voltageDrop);
-        break;
-        
       case 'capacitor':
-        // For DC analysis, capacitor blocks current
-        current = 0;
+        current = 0; // Blocks DC
         voltage = Math.abs(voltageDrop);
         break;
         
       case 'diode':
-        // Simplified diode model
         if (voltageDrop > 0.7) {
-          current = (voltageDrop - 0.7) / 100; // Forward biased with 100Ω resistance
+          current = (voltageDrop - 0.7) / 100;
           voltage = 0.7;
         } else {
-          current = 0; // Reverse biased
+          current = 0;
           voltage = Math.abs(voltageDrop);
         }
         break;
@@ -375,22 +368,81 @@ export function solveCircuit(analyzedCircuit: AnalyzedCircuit): CircuitAnalysisR
     branch.voltage = voltage;
     branchCurrents.set(branch.id, current);
     
-    // Store measurements for the component
     componentMeasurements.set(component.id, { 
       voltage: voltage, 
       current: Math.abs(current) 
     });
     
-    console.log(`Component ${component.type} (${component.id}): V=${voltage.toFixed(4)}V, I=${(Math.abs(current) * 1000).toFixed(2)}mA, Node voltages: ${fromVoltage.toFixed(2)}V -> ${toVoltage.toFixed(2)}V`);
+    console.log(`Component ${component.type} (${component.id}): V=${voltage.toFixed(4)}V, I=${(Math.abs(current) * 1000).toFixed(2)}mA, Nodes: ${fromVoltage.toFixed(2)}V -> ${toVoltage.toFixed(2)}V`);
   });
   
-  // Determine connectivity - check if there's a path from any voltage source to ground
+  // Ensure current conservation by propagating current through series connections
+  // This ensures ammeters after resistors show the correct current
+  const propagateCurrents = () => {
+    let currentsPropagated = false;
+    
+    nodes.forEach(node => {
+      if (node.id === groundNodeId) return;
+      
+      const connectedBranches = branches.filter(branch => 
+        branch.fromNodeId === node.id || branch.toNodeId === node.id
+      );
+      
+      // For nodes with exactly 2 connections (series), current must be the same
+      if (connectedBranches.length === 2) {
+        const branch1 = connectedBranches[0];
+        const branch2 = connectedBranches[1];
+        
+        // Skip if one is a voltage source
+        if (branch1.component.type === 'voltageSource' || branch1.component.type === 'battery' || 
+            branch2.component.type === 'voltageSource' || branch2.component.type === 'battery') {
+          return;
+        }
+        
+        // Use the larger current (more reliable calculation)
+        const current1 = Math.abs(branch1.current);
+        const current2 = Math.abs(branch2.current);
+        const maxCurrent = Math.max(current1, current2);
+        
+        if (Math.abs(current1 - current2) > 0.001) {
+          // Propagate the larger current to both branches
+          const direction1 = branch1.fromNodeId === node.id ? -1 : 1;
+          const direction2 = branch2.fromNodeId === node.id ? -1 : 1;
+          
+          branch1.current = direction1 * maxCurrent;
+          branch2.current = direction2 * maxCurrent;
+          
+          branchCurrents.set(branch1.id, branch1.current);
+          branchCurrents.set(branch2.id, branch2.current);
+          
+          componentMeasurements.set(branch1.component.id, {
+            voltage: branch1.voltage,
+            current: maxCurrent
+          });
+          componentMeasurements.set(branch2.component.id, {
+            voltage: branch2.voltage,
+            current: maxCurrent
+          });
+          
+          currentsPropagated = true;
+        }
+      }
+    });
+    
+    return currentsPropagated;
+  };
+  
+  // Propagate currents multiple times to ensure consistency
+  for (let i = 0; i < 5; i++) {
+    if (!propagateCurrents()) break;
+  }
+  
+  // Determine connectivity
   const connectedComponents = new Set<string>();
   const hasVoltageSource = voltageSources.length > 0;
   const hasConnectivity = hasVoltageSource && groundNodeId !== null;
   
   if (hasConnectivity) {
-    // Mark all components that are in branches as connected
     branches.forEach(branch => {
       connectedComponents.add(branch.component.id);
     });
