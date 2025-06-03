@@ -3,6 +3,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { SimulationResult } from '../lib/circuitSimulator';
 
+type TimeUnit = 'ns' | 'µs' | 'ms' | 's';
+type VoltageUnit = 'µV' | 'mV' | 'V' | 'kV';
+
+interface TimeScale {
+  value: number;
+  unit: TimeUnit;
+  label: string;
+}
+
+interface VoltageScale {
+  value: number;
+  unit: VoltageUnit;
+  label: string;
+}
+
 interface OscilloscopeProps {
   simulationResult: SimulationResult | null;
   nodeIds: string[];
@@ -24,6 +39,72 @@ const DEFAULT_COLORS = [
   '#800080', // Purple
 ];
 
+// Available time scales
+const TIME_SCALES: TimeScale[] = [
+  { value: 1, unit: 's', label: '1 s' },
+  { value: 0.5, unit: 's', label: '0.5 s' },
+  { value: 0.2, unit: 's', label: '0.2 s' },
+  { value: 0.1, unit: 's', label: '0.1 s' },
+  { value: 0.05, unit: 's', label: '0.05 s' },
+  { value: 0.02, unit: 's', label: '0.02 s' },
+  { value: 0.01, unit: 's', label: '0.01 s' },
+  { value: 5, unit: 'ms', label: '5 ms' },
+  { value: 2, unit: 'ms', label: '2 ms' },
+  { value: 1, unit: 'ms', label: '1 ms' },
+  { value: 0.5, unit: 'ms', label: '0.5 ms' },
+  { value: 0.2, unit: 'ms', label: '0.2 ms' },
+  { value: 0.1, unit: 'ms', label: '0.1 ms' },
+  { value: 0.05, unit: 'ms', label: '0.05 ms' },
+  { value: 0.02, unit: 'ms', label: '0.02 ms' },
+  { value: 0.01, unit: 'ms', label: '0.01 ms' },
+  { value: 5, unit: 'µs', label: '5 µs' },
+  { value: 2, unit: 'µs', label: '2 µs' },
+  { value: 1, unit: 'µs', label: '1 µs' },
+  { value: 0.5, unit: 'µs', label: '0.5 µs' },
+  { value: 0.2, unit: 'µs', label: '0.2 µs' },
+  { value: 0.1, unit: 'µs', label: '0.1 µs' },
+  { value: 0.05, unit: 'µs', label: '0.05 µs' },
+  { value: 0.02, unit: 'µs', label: '0.02 µs' },
+  { value: 0.01, unit: 'µs', label: '0.01 µs' },
+  { value: 5, unit: 'ns', label: '5 ns' },
+  { value: 2, unit: 'ns', label: '2 ns' },
+  { value: 1, unit: 'ns', label: '1 ns' },
+  { value: 0.5, unit: 'ns', label: '0.5 ns' },
+  { value: 0.2, unit: 'ns', label: '0.2 ns' },
+  { value: 0.1, unit: 'ns', label: '0.1 ns' }
+];
+
+// Available voltage scales
+const VOLTAGE_SCALES: VoltageScale[] = [
+  { value: 5, unit: 'kV', label: '5 kV' },
+  { value: 2, unit: 'kV', label: '2 kV' },
+  { value: 1, unit: 'kV', label: '1 kV' },
+  { value: 500, unit: 'V', label: '500 V' },
+  { value: 200, unit: 'V', label: '200 V' },
+  { value: 100, unit: 'V', label: '100 V' },
+  { value: 50, unit: 'V', label: '50 V' },
+  { value: 20, unit: 'V', label: '20 V' },
+  { value: 10, unit: 'V', label: '10 V' },
+  { value: 5, unit: 'V', label: '5 V' },
+  { value: 2, unit: 'V', label: '2 V' },
+  { value: 1, unit: 'V', label: '1 V' },
+  { value: 500, unit: 'mV', label: '500 mV' },
+  { value: 200, unit: 'mV', label: '200 mV' },
+  { value: 100, unit: 'mV', label: '100 mV' },
+  { value: 50, unit: 'mV', label: '50 mV' },
+  { value: 20, unit: 'mV', label: '20 mV' },
+  { value: 10, unit: 'mV', label: '10 mV' },
+  { value: 5, unit: 'mV', label: '5 mV' },
+  { value: 2, unit: 'mV', label: '2 mV' },
+  { value: 1, unit: 'mV', label: '1 mV' },
+  { value: 500, unit: 'µV', label: '500 µV' },
+  { value: 200, unit: 'µV', label: '200 µV' },
+  { value: 100, unit: 'µV', label: '100 µV' },
+  { value: 50, unit: 'µV', label: '50 µV' },
+  { value: 20, unit: 'µV', label: '20 µV' },
+  { value: 10, unit: 'µV', label: '10 µV' }
+];
+
 export default function Oscilloscope({ 
   simulationResult, 
   nodeIds,
@@ -33,10 +114,28 @@ export default function Oscilloscope({
   availableProbes = []
 }: OscilloscopeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [timeScale, setTimeScale] = useState(1.0);
-  const [voltageScale, setVoltageScale] = useState(1.0);
+  
+  // Updated scale states
+  const [selectedTimeScale, setSelectedTimeScale] = useState<TimeScale>(TIME_SCALES[10]); // Default to 1ms
+  const [selectedVoltageScale, setSelectedVoltageScale] = useState<VoltageScale>(VOLTAGE_SCALES[9]); // Default to 5V
   const [offsetTime, setOffsetTime] = useState(0);
   const [offsetVoltage, setOffsetVoltage] = useState(0);
+
+  // Time unit conversion factors
+  const timeUnitFactors: Record<TimeUnit, number> = {
+    'ns': 1e-9,
+    'µs': 1e-6,
+    'ms': 1e-3,
+    's': 1
+  };
+
+  // Voltage unit conversion factors
+  const voltageUnitFactors: Record<VoltageUnit, number> = {
+    'µV': 1e-6,
+    'mV': 1e-3,
+    'V': 1,
+    'kV': 1e3
+  };
   
   // Draw the oscilloscope display
   useEffect(() => {
@@ -54,12 +153,12 @@ export default function Oscilloscope({
     
     // Draw signals
     drawSignals(ctx, simulationResult, nodeIds, colors, canvas.width, canvas.height, 
-                timeScale, voltageScale, offsetTime, offsetVoltage);
+                selectedTimeScale, selectedVoltageScale, offsetTime, offsetVoltage);
     
     // Draw frame
     drawFrame(ctx, canvas.width, canvas.height);
     
-  }, [simulationResult, nodeIds, colors, width, height, timeScale, voltageScale, offsetTime, offsetVoltage]);
+  }, [simulationResult, nodeIds, colors, width, height, selectedTimeScale, selectedVoltageScale, offsetTime, offsetVoltage]);
   
   // Draw the grid on the oscilloscope
   const drawGrid = (
@@ -110,7 +209,7 @@ export default function Oscilloscope({
     ctx.restore();
   };
   
-  // Draw the signals on the oscilloscope
+  // Updated drawSignals function
   const drawSignals = (
     ctx: CanvasRenderingContext2D,
     result: SimulationResult,
@@ -118,14 +217,13 @@ export default function Oscilloscope({
     colors: string[],
     width: number,
     height: number,
-    timeScale: number,
-    voltageScale: number,
+    timeScale: TimeScale,
+    voltageScale: VoltageScale,
     offsetTime: number,
     offsetVoltage: number
   ) => {
     if (!result.time.length) return;
     
-    // Center of the oscilloscope
     const centerY = height / 2;
     
     // Find max voltage for scaling
@@ -138,18 +236,18 @@ export default function Oscilloscope({
       }
     }
     
-    // If no signal, don't try to draw
     if (maxVoltage === 0) return;
     
-    // Scale for value to pixel conversion
+    // Scale for value to pixel conversion with unit factors
     const timeToX = (t: number) => {
       const normalizedTime = (t - result.time[0]) / (result.time[result.time.length - 1] - result.time[0]);
-      return (normalizedTime * width * timeScale) + (width/2) * (1 - timeScale) - (offsetTime * width);
+      const scaledTime = normalizedTime * timeScale.value * timeUnitFactors[timeScale.unit];
+      return (scaledTime * width) + (width/2) * (1 - timeScale.value) - (offsetTime * width);
     };
     
     const valueToY = (value: number) => {
-      // Normalize and scale the value, and invert Y (canvas Y grows downward)
-      return centerY - (value * (height/2) / maxVoltage * voltageScale) - (offsetVoltage * height);
+      const scaledValue = value * voltageScale.value * voltageUnitFactors[voltageScale.unit];
+      return centerY - (scaledValue * (height/2) / maxVoltage) - (offsetVoltage * height);
     };
     
     // Draw each signal
@@ -162,7 +260,6 @@ export default function Oscilloscope({
       ctx.lineWidth = 2;
       ctx.beginPath();
       
-      // Plot the signal
       for (let i = 0; i < result.time.length; i++) {
         const x = timeToX(result.time[i]);
         const y = valueToY(signal[i]);
@@ -243,41 +340,42 @@ export default function Oscilloscope({
       
       <div className="flex flex-wrap gap-3 mt-4">
         <div className="flex flex-col">
-          <label htmlFor="timeScale" className="text-sm text-gray-300">Time Scale</label>
-          <input 
-            id="timeScale"
-            type="range" 
-            min="0.1" 
-            max="3" 
-            step="0.1"
-            value={timeScale}
-            onChange={(e) => setTimeScale(parseFloat(e.target.value))}
-            className="w-32"
-          />
+          <label className="text-sm text-gray-300">Time Scale</label>
+          <select 
+            value={TIME_SCALES.indexOf(selectedTimeScale)}
+            onChange={(e) => setSelectedTimeScale(TIME_SCALES[parseInt(e.target.value)])}
+            className="bg-gray-700 text-gray-200 rounded px-2 py-1"
+          >
+            {TIME_SCALES.map((scale, index) => (
+              <option key={scale.label} value={index}>
+                {scale.label}/div
+              </option>
+            ))}
+          </select>
         </div>
         
         <div className="flex flex-col">
-          <label htmlFor="voltageScale" className="text-sm text-gray-300">Voltage Scale</label>
-          <input 
-            id="voltageScale"
-            type="range" 
-            min="0.1" 
-            max="3" 
-            step="0.1"
-            value={voltageScale}
-            onChange={(e) => setVoltageScale(parseFloat(e.target.value))}
-            className="w-32"
-          />
+          <label className="text-sm text-gray-300">Voltage Scale</label>
+          <select 
+            value={VOLTAGE_SCALES.indexOf(selectedVoltageScale)}
+            onChange={(e) => setSelectedVoltageScale(VOLTAGE_SCALES[parseInt(e.target.value)])}
+            className="bg-gray-700 text-gray-200 rounded px-2 py-1"
+          >
+            {VOLTAGE_SCALES.map((scale, index) => (
+              <option key={scale.label} value={index}>
+                {scale.label}/div
+              </option>
+            ))}
+          </select>
         </div>
         
         <div className="flex flex-col">
-          <label htmlFor="offsetTime" className="text-sm text-gray-300">Time Position</label>
+          <label className="text-sm text-gray-300">Time Position</label>
           <input 
-            id="offsetTime"
             type="range" 
-            min="-0.5" 
-            max="0.5" 
-            step="0.01"
+            min="-5" 
+            max="5" 
+            step="0.1"
             value={offsetTime}
             onChange={(e) => setOffsetTime(parseFloat(e.target.value))}
             className="w-32"
@@ -285,13 +383,12 @@ export default function Oscilloscope({
         </div>
         
         <div className="flex flex-col">
-          <label htmlFor="offsetVoltage" className="text-sm text-gray-300">Voltage Position</label>
+          <label className="text-sm text-gray-300">Voltage Position</label>
           <input 
-            id="offsetVoltage"
             type="range" 
-            min="-0.5" 
-            max="0.5" 
-            step="0.01"
+            min="-5" 
+            max="5" 
+            step="0.1"
             value={offsetVoltage}
             onChange={(e) => setOffsetVoltage(parseFloat(e.target.value))}
             className="w-32"

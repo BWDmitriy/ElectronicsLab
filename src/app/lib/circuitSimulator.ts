@@ -16,9 +16,9 @@ export interface SimulationResult {
 }
 
 // Number of data points to simulate
-const SIMULATION_POINTS = 1000;
-// Simulation time in seconds
-const SIMULATION_TIME = 0.1;
+const SIMULATION_POINTS = 10000;
+// Simulation time in seconds - adjusted for high frequency
+const SIMULATION_TIME = 0.0001; // 100 microseconds, better for high frequency signals
 
 /**
  * Run a circuit simulation and return the time-domain signals at each node
